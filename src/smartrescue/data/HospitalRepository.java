@@ -19,55 +19,30 @@ public class HospitalRepository {
     }
 
     public List<Hospital> searchHospitals(String specialty, int minBeds) {
-
         List<Hospital> matchingHospitals = new ArrayList<>();
 
         try (BufferedReader reader = Files.newBufferedReader(filePath)) {
-
             String line;
             reader.readLine();
 
             while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
 
-                String[] fields = line.split(",", -1);
+                String[] fields = parseCsvLine(line);
+                if (fields.length != 6) continue;
 
-                if (fields.length != 6) {
-                    continue;
-                }
+                Hospital hospital = convertFromCsv(fields);
 
-                int hospitalId = Integer.parseInt(fields[0].trim());
-                String name = fields[1].trim();
-                String location = fields[2].trim();
-                int availableBeds = Integer.parseInt(fields[3].trim());
-                int emergencyCapacity = Integer.parseInt(fields[4].trim());
-
-                List<String> specialties = new ArrayList<>();
-                String[] specialtyValues = fields[5].split(";");
-
-                for (String value : specialtyValues) {
-                    specialties.add(value.trim());
-                }
-
-                Hospital hospital = new Hospital(
-                    hospitalId,
-                    name,
-                    location,
-                    availableBeds,
-                    emergencyCapacity,
-                    specialties
-                );
-
-                boolean specialtyMatches = specialties.stream()
-                    .anyMatch(value -> value.equalsIgnoreCase(specialty));
+                boolean specialtyMatches =
+                    hospital.getMedicalSpecialties().stream()
+                        .anyMatch(value -> value.equalsIgnoreCase(specialty));
 
                 if (specialtyMatches
-                        && availableBeds >= minBeds
+                        && hospital.getAvailableBeds() >= minBeds
                         && hospital.hasCapacityFor(specialty)) {
-
                     matchingHospitals.add(hospital);
                 }
             }
-
         } catch (IOException e) {
             throw new IllegalStateException(
                 "Could not read hospitals.csv", e
@@ -77,23 +52,74 @@ public class HospitalRepository {
         return matchingHospitals;
     }
 
+    public Hospital findHospitalById(int hospitalId) {
+        try (BufferedReader reader = Files.newBufferedReader(filePath)) {
+            String line;
+            reader.readLine();
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                String[] fields = parseCsvLine(line);
+
+                if (fields.length == 6
+                        && Integer.parseInt(fields[0].trim()) == hospitalId) {
+                    return convertFromCsv(fields);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                "Could not read hospitals.csv", e
+            );
+        }
+
+        return null;
+    }
+
+    private Hospital convertFromCsv(String[] fields) {
+        int hospitalId = Integer.parseInt(fields[0].trim());
+        String name = fields[1].trim();
+        String location = fields[2].trim();
+        int availableBeds = Integer.parseInt(fields[3].trim());
+        int emergencyCapacity = Integer.parseInt(fields[4].trim());
+
+        List<String> specialties = new ArrayList<>();
+        for (String value : fields[5].split(";")) {
+            specialties.add(value.trim());
+        }
+
+        return new Hospital(
+            hospitalId, name, location,
+            availableBeds, emergencyCapacity, specialties
+        );
+    }
+
     public void updateHospitalAvailability(int hospitalId, int beds,
-                                            int capacity,
-                                            List<String> specialties) {
-
+                                           int capacity,
+                                           List<String> specialties) {
         try {
-
             List<String> lines = Files.readAllLines(filePath);
-            List<String> updatedLines = new ArrayList<>();
 
+            if (lines.isEmpty()) {
+                throw new IllegalStateException(
+                    "hospitals.csv is empty."
+                );
+            }
+
+            List<String> updatedLines = new ArrayList<>();
             updatedLines.add(lines.get(0));
 
             boolean hospitalFound = false;
 
             for (int i = 1; i < lines.size(); i++) {
-
                 String line = lines.get(i);
-                String[] fields = line.split(",", -1);
+
+                if (line.isBlank()) {
+                    updatedLines.add(line);
+                    continue;
+                }
+
+                String[] fields = parseCsvLine(line);
 
                 if (fields.length != 6) {
                     updatedLines.add(line);
@@ -101,21 +127,15 @@ public class HospitalRepository {
                 }
 
                 int currentHospitalId =
-                        Integer.parseInt(fields[0].trim());
+                    Integer.parseInt(fields[0].trim());
 
                 if (currentHospitalId == hospitalId) {
+                    fields[3] = String.valueOf(beds);
+                    fields[4] = String.valueOf(capacity);
+                    fields[5] = String.join(";", specialties);
 
-                    String updatedLine =
-                            fields[0] + "," +
-                            fields[1] + "," +
-                            fields[2] + "," +
-                            beds + "," +
-                            capacity + "," +
-                            String.join(";", specialties);
-
-                    updatedLines.add(updatedLine);
+                    updatedLines.add(toCsvLine(fields));
                     hospitalFound = true;
-
                 } else {
                     updatedLines.add(line);
                 }
@@ -128,11 +148,62 @@ public class HospitalRepository {
             }
 
             Files.write(filePath, updatedLines);
-
         } catch (IOException e) {
             throw new IllegalStateException(
                 "Could not update hospitals.csv", e
             );
         }
+    }
+
+    private String[] parseCsvLine(String line) {
+        List<String> fields = new ArrayList<>();
+        StringBuilder currentField = new StringBuilder();
+        boolean insideQuotes = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char current = line.charAt(i);
+
+            if (current == '"') {
+                if (insideQuotes
+                        && i + 1 < line.length()
+                        && line.charAt(i + 1) == '"') {
+                    currentField.append('"');
+                    i++;
+                } else {
+                    insideQuotes = !insideQuotes;
+                }
+            } else if (current == ',' && !insideQuotes) {
+                fields.add(currentField.toString());
+                currentField.setLength(0);
+            } else {
+                currentField.append(current);
+            }
+        }
+
+        if (insideQuotes) {
+            throw new IllegalArgumentException(
+                "Invalid CSV row: unmatched quotation mark."
+            );
+        }
+
+        fields.add(currentField.toString());
+        return fields.toArray(new String[0]);
+    }
+
+    private String toCsvLine(String[] fields) {
+        List<String> escapedFields = new ArrayList<>();
+
+        for (String field : fields) {
+            String value = field == null ? "" : field;
+
+            if (value.contains(",") || value.contains("\"")
+                    || value.contains("\n") || value.contains("\r")) {
+                value = "\"" + value.replace("\"", "\"\"") + "\"";
+            }
+
+            escapedFields.add(value);
+        }
+
+        return String.join(",", escapedFields);
     }
 }

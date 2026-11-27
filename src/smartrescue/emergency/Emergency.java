@@ -25,10 +25,12 @@ public class Emergency {
     private List<AssistanceRecord> assistanceRecords;
     private List<HospitalTransfer> hospitalTransfers;
 
+    // Creates a new emergency reported by a witness.
     public Emergency(String location, String description, int patientCount) {
         this(location, description, null, null, patientCount);
     }
 
+    // Creates a new emergency with its classification.
     public Emergency(String location, String description, String type,
                      Severity severity, int patientCount) {
 
@@ -41,6 +43,28 @@ public class Emergency {
         this.patientCount = patientCount;
         this.status = EmergencyStatus.REPORTED;
 
+        initializeCollections();
+    }
+
+    // Restores an existing emergency loaded from persistent storage.
+    public Emergency(String incidentId, String location,
+                     String description, LocalDateTime reportedAt,
+                     String type, Severity severity, int patientCount,
+                     EmergencyStatus status) {
+
+        this.incidentId = incidentId;
+        this.location = location;
+        this.description = description;
+        this.reportedAt = reportedAt;
+        this.type = type;
+        this.severity = severity;
+        this.patientCount = patientCount;
+        this.status = status;
+
+        initializeCollections();
+    }
+
+    private void initializeCollections() {
         this.ambulance = null;
         this.patients = new ArrayList<>();
         this.assistanceRecords = new ArrayList<>();
@@ -91,6 +115,22 @@ public class Emergency {
                "\nSeverity: " + severity +
                "\nPatient Count: " + patientCount +
                "\nStatus: " + status;
+    }
+
+    public String getIncidentId() {
+        return incidentId;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public LocalDateTime getReportedAt() {
+        return reportedAt;
     }
 
     public int getPatientCount() {

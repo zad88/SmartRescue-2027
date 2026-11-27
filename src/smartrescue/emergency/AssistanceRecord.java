@@ -4,26 +4,30 @@ import java.time.LocalDateTime;
 
 public class AssistanceRecord {
 
-    // Attributes
-
     private int recordId;
     private String description;
     private LocalDateTime recordedAt;
     private int patientsTreated;
 
-    // Constructor
-
-    public AssistanceRecord(int recordId, String description, int patientsTreated) {
-        this.recordId = recordId;
-        this.description = description;
-        this.patientsTreated = patientsTreated;
-        this.recordedAt = null;
+    public AssistanceRecord(int recordId, String description,
+                            int patientsTreated) {
+        this(recordId, description, null, patientsTreated);
     }
 
-    // Record assistance
+    public AssistanceRecord(int recordId, String description,
+                            LocalDateTime recordedAt, int patientsTreated) {
+        this.recordId = recordId;
+        this.description = description;
+        this.recordedAt = recordedAt;
+        this.patientsTreated = patientsTreated;
+    }
 
     public void recordAssistance() {
         this.recordedAt = LocalDateTime.now();
     }
 
+    public int getRecordId() { return recordId; }
+    public String getDescription() { return description; }
+    public LocalDateTime getRecordedAt() { return recordedAt; }
+    public int getPatientsTreated() { return patientsTreated; }
 }

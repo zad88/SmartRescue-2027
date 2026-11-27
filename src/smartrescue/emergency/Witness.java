@@ -1,6 +1,7 @@
 package smartrescue.emergency;
 
 import smartrescue.Person;
+import smartrescue.data.EmergencyRepository;
 
 public class Witness extends Person {
 
@@ -22,7 +23,14 @@ public class Witness extends Person {
                                      String description,
                                      int injuredCount) {
 
-        return new Emergency(location, description, injuredCount);
+        Emergency emergency = new Emergency(
+                location, description, injuredCount
+        );
+
+        EmergencyRepository repository = new EmergencyRepository();
+        repository.saveEmergency(emergency);
+
+        return emergency;
     }
 
     public String provideLocation() {

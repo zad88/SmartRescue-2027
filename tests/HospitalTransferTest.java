@@ -1,6 +1,8 @@
 import java.util.Arrays;
+import java.util.List;
 
 import smartrescue.dispatch.*;
+import smartrescue.data.HospitalRepository;
 import smartrescue.hospital.*;
 import smartrescue.emergency.*;
 import smartrescue.transfer.*;
@@ -9,60 +11,124 @@ public class HospitalTransferTest {
 
     public static void main(String[] args) {
 
-        Hospital hospital = new Hospital(
-            1, "City Hospital", "Cairo",
-            10, 10, Arrays.asList("Emergency")
-        );
+        HospitalRepository repository = new HospitalRepository();
 
-        Ambulance ambulance = new Ambulance(
-            1, "ABC-123", AmbulanceStatus.AVAILABLE, "Cairo"
-        );
+        List<Hospital> availableHospitals =
+                repository.searchHospitals("Emergency", 3);
 
-        AmbulanceTeam team = new AmbulanceTeam(
-            1, "Ahmed", 2, "Available", ambulance
-        );
+        if (availableHospitals.isEmpty()) {
+            throw new IllegalStateException(
+                "No suitable hospital was found in hospitals.csv."
+            );
+        }
 
-        Emergency emergency = new Emergency(
-            "Cairo", "Car accident", 3
-        );
+        Hospital hospital = availableHospitals.get(0);
 
-        HospitalTransfer transfer =
-                team.transferPatients(emergency, hospital);
+        int originalBeds = hospital.getAvailableBeds();
+        int originalCapacity = hospital.getEmergencyCapacity();
+        List<String> originalSpecialties =
+                hospital.getMedicalSpecialties();
 
-        System.out.println("Transfer status: "
-                + transfer.getTransferStatus());
+        try {
+            Ambulance ambulance = new Ambulance(
+                1, "ABC-123", AmbulanceStatus.AVAILABLE, "Cairo"
+            );
 
-        System.out.println("Beds before confirmation: "
-                + hospital.getAvailableBeds());
+            AmbulanceTeam team = new AmbulanceTeam(
+                1, "Ahmed", 2, "Available", ambulance
+            );
 
-        System.out.println("Capacity before confirmation: "
-                + hospital.getEmergencyCapacity());
+            Emergency emergency = new Emergency(
+                "Cairo", "Car accident", 3
+            );
 
-        HospitalStaff staff = new HospitalStaff(
-            1, "Ali", "Doctor", "Emergency", hospital
-        );
+            HospitalTransfer transfer =
+                    team.transferPatients(emergency, hospital);
 
-        staff.confirmPatientTransfer(transfer);
+            System.out.println("Transfer status: "
+                    + transfer.getTransferStatus());
 
-        System.out.println("\nAfter confirmation:");
+            System.out.println("Beds before confirmation: "
+                    + hospital.getAvailableBeds());
 
-        System.out.println("Transfer status: "
-                + transfer.getTransferStatus());
+            System.out.println("Capacity before confirmation: "
+                    + hospital.getEmergencyCapacity());
 
-        System.out.println("Beds: "
-                + hospital.getAvailableBeds());
+            HospitalStaff staff = new HospitalStaff(
+                1, "Ali", "Doctor", "Emergency", hospital
+            );
 
-        System.out.println("Capacity: "
-                + hospital.getEmergencyCapacity());
+            staff.confirmPatientTransfer(transfer);
 
-        staff.confirmPatientTransfer(transfer);
+            System.out.println("\nAfter confirmation:");
 
-        System.out.println("\nAfter second confirmation attempt:");
+            System.out.println("Transfer status: "
+                    + transfer.getTransferStatus());
 
-        System.out.println("Beds: "
-                + hospital.getAvailableBeds());
+            System.out.println("Beds in memory: "
+                    + hospital.getAvailableBeds());
 
-        System.out.println("Capacity: "
-                + hospital.getEmergencyCapacity());
+            System.out.println("Capacity in memory: "
+                    + hospital.getEmergencyCapacity());
+
+            List<Hospital> savedHospitals =
+                    repository.searchHospitals("Emergency", 0);
+
+            Hospital savedHospital = savedHospitals.stream()
+                    .filter(h -> h.getHospitalId() == hospital.getHospitalId())
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                        "Hospital was not found after saving."
+                    ));
+
+            System.out.println("\nValues loaded again from CSV:");
+
+            System.out.println("Beds saved: "
+                    + savedHospital.getAvailableBeds());
+
+            System.out.println("Capacity saved: "
+                    + savedHospital.getEmergencyCapacity());
+
+            if (savedHospital.getAvailableBeds()
+                    != originalBeds - 3
+                    || savedHospital.getEmergencyCapacity()
+                    != originalCapacity - 3) {
+                throw new IllegalStateException(
+                    "Hospital capacity was not persisted correctly."
+                );
+            }
+
+            staff.confirmPatientTransfer(transfer);
+
+            if (hospital.getAvailableBeds() != originalBeds - 3
+                    || hospital.getEmergencyCapacity()
+                    != originalCapacity - 3) {
+                throw new IllegalStateException(
+                    "Second confirmation deducted capacity again."
+                );
+            }
+
+            System.out.println(
+                "\nSecond confirmation did not deduct capacity again."
+            );
+
+            System.out.println("HOSPITAL TRANSFER TEST PASSED");
+
+        } finally {
+            repository.updateHospitalAvailability(
+                hospital.getHospitalId(),
+                originalBeds,
+                originalCapacity,
+                originalSpecialties
+            );
+
+            hospital.updateAvailability(
+                originalBeds,
+                originalCapacity,
+                originalSpecialties
+            );
+
+            System.out.println("Original hospital data restored.");
+        }
     }
 }

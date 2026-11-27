@@ -28,7 +28,7 @@ public class Hospital {
 
         return availableBeds > 0
                 && emergencyCapacity > 0
-                && medicalSpecialties.contains(specialty);
+                && medicalSpecialties.stream().anyMatch(value -> value.equalsIgnoreCase(specialty));
     }
 
     public void updateAvailability(int beds, int capacity,
