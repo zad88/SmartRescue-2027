@@ -54,6 +54,10 @@ public class Hospital {
         }
     }
 
+    public int getHospitalId() {
+        return hospitalId;
+    }
+
     public int getAvailableBeds() {
         return availableBeds;
     }

@@ -25,8 +25,6 @@ public class HospitalRepository {
         try (BufferedReader reader = Files.newBufferedReader(filePath)) {
 
             String line;
-
-            // Skip the CSV header
             reader.readLine();
 
             while ((line = reader.readLine()) != null) {
@@ -44,7 +42,6 @@ public class HospitalRepository {
                 int emergencyCapacity = Integer.parseInt(fields[4].trim());
 
                 List<String> specialties = new ArrayList<>();
-
                 String[] specialtyValues = fields[5].split(";");
 
                 for (String value : specialtyValues) {
@@ -78,5 +75,64 @@ public class HospitalRepository {
         }
 
         return matchingHospitals;
+    }
+
+    public void updateHospitalAvailability(int hospitalId, int beds,
+                                            int capacity,
+                                            List<String> specialties) {
+
+        try {
+
+            List<String> lines = Files.readAllLines(filePath);
+            List<String> updatedLines = new ArrayList<>();
+
+            updatedLines.add(lines.get(0));
+
+            boolean hospitalFound = false;
+
+            for (int i = 1; i < lines.size(); i++) {
+
+                String line = lines.get(i);
+                String[] fields = line.split(",", -1);
+
+                if (fields.length != 6) {
+                    updatedLines.add(line);
+                    continue;
+                }
+
+                int currentHospitalId =
+                        Integer.parseInt(fields[0].trim());
+
+                if (currentHospitalId == hospitalId) {
+
+                    String updatedLine =
+                            fields[0] + "," +
+                            fields[1] + "," +
+                            fields[2] + "," +
+                            beds + "," +
+                            capacity + "," +
+                            String.join(";", specialties);
+
+                    updatedLines.add(updatedLine);
+                    hospitalFound = true;
+
+                } else {
+                    updatedLines.add(line);
+                }
+            }
+
+            if (!hospitalFound) {
+                throw new IllegalArgumentException(
+                    "Hospital ID " + hospitalId + " was not found."
+                );
+            }
+
+            Files.write(filePath, updatedLines);
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                "Could not update hospitals.csv", e
+            );
+        }
     }
 }

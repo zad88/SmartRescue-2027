@@ -3,6 +3,7 @@ package smartrescue.hospital;
 import java.util.List;
 
 import smartrescue.Person;
+import smartrescue.data.HospitalRepository;
 import smartrescue.transfer.HospitalTransfer;
 
 public class HospitalStaff extends Person {
@@ -26,6 +27,15 @@ public class HospitalStaff extends Person {
 
     public void updateHospitalInfo(Hospital h, int beds, int capacity,
                                    List<String> specialties) {
+
+        HospitalRepository repository = new HospitalRepository();
+
+        repository.updateHospitalAvailability(
+            h.getHospitalId(),
+            beds,
+            capacity,
+            specialties
+        );
 
         h.updateAvailability(beds, capacity, specialties);
     }
