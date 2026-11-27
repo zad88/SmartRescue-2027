@@ -39,12 +39,20 @@ public class Hospital {
         this.medicalSpecialties = new ArrayList<>(specialties);
     }
 
-    public void receivePatients(int count) {
-        this.availableBeds -= count;
-        this.emergencyCapacity -= count;
+    public boolean canReceivePatients(int count) {
+
+        return count > 0
+                && count <= availableBeds
+                && count <= emergencyCapacity;
     }
 
-    // Getters needed by AmbulanceTeam
+    public void receivePatients(int count) {
+
+        if (canReceivePatients(count)) {
+            availableBeds -= count;
+            emergencyCapacity -= count;
+        }
+    }
 
     public int getAvailableBeds() {
         return availableBeds;
@@ -57,5 +65,4 @@ public class Hospital {
     public List<String> getMedicalSpecialties() {
         return new ArrayList<>(medicalSpecialties);
     }
-
 }

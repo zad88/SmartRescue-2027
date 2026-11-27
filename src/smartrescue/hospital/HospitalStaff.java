@@ -1,6 +1,7 @@
 package smartrescue.hospital;
 
 import java.util.List;
+
 import smartrescue.Person;
 import smartrescue.transfer.HospitalTransfer;
 
@@ -31,5 +32,9 @@ public class HospitalStaff extends Person {
 
     public void confirmPatientTransfer(HospitalTransfer transfer) {
         transfer.recordConfirmation(this);
+    }
+
+    public Hospital getHospital() {
+        return hospital;
     }
 }

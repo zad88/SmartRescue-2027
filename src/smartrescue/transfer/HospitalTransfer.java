@@ -15,8 +15,6 @@ public class HospitalTransfer {
     private int patientCount;
     private String transferStatus;
 
-    // UML associations
-
     private List<Patient> patients;
     private AmbulanceTeam ambulanceTeam;
     private Hospital hospital;
@@ -41,7 +39,29 @@ public class HospitalTransfer {
     }
 
     public void recordConfirmation(HospitalStaff staff) {
+
+        if (!"PENDING".equals(transferStatus)) {
+            return;
+        }
+
+        if (staff == null || staff.getHospital() != hospital) {
+            return;
+        }
+
+        if (!hospital.canReceivePatients(patientCount)) {
+            return;
+        }
+
+        hospital.receivePatients(patientCount);
         this.hospitalStaff = staff;
+        this.transferStatus = "CONFIRMED";
     }
 
+    public String getTransferStatus() {
+        return transferStatus;
+    }
+
+    public List<Patient> getPatients() {
+        return new ArrayList<>(patients);
+    }
 }

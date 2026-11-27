@@ -33,6 +33,10 @@ public class OperatorTest {
             1, "ABC-123", AmbulanceStatus.AVAILABLE, "Cairo"
         );
 
+        AmbulanceTeam team = new AmbulanceTeam(
+            1, "Ahmed", 2, "Available", ambulance
+        );
+
         operator.assignAmbulance(emergency, ambulance);
 
         System.out.println("Ambulance available: "
@@ -40,7 +44,13 @@ public class OperatorTest {
 
         System.out.println("After assignment: " + emergency.getStatus());
 
-        emergency.changeStatus(EmergencyStatus.RESOLVED);
+        emergency.changeStatus(EmergencyStatus.ON_SCENE);
+
+        team.provideOnSceneAssistance(emergency);
+        team.resolveEmergency(emergency);
+
+        System.out.println("After resolution: " + emergency.getStatus());
+
         operator.closeEmergency(emergency);
 
         System.out.println("Final status: " + emergency.getStatus());

@@ -3,11 +3,14 @@ package smartrescue.dispatch;
 import java.util.ArrayList;
 import java.util.List;
 
+import smartrescue.data.HospitalRepository;
+import smartrescue.data.IdGenerator;
 import smartrescue.emergency.Emergency;
 import smartrescue.emergency.AssistanceRecord;
 import smartrescue.emergency.EmergencyStatus;
 import smartrescue.hospital.Hospital;
 import smartrescue.transfer.HospitalTransfer;
+import smartrescue.transfer.Patient;
 
 public class AmbulanceTeam {
 
@@ -17,10 +20,9 @@ public class AmbulanceTeam {
     private String currentStatus;
 
     private Ambulance ambulance;
-    private List<HospitalTransfer> hospitalTransfers;
+    private Hospital selectedHospital;
 
-    private static int nextRecordId = 1;
-    private static int nextTransferId = 1;
+    private List<HospitalTransfer> hospitalTransfers;
 
     public AmbulanceTeam(int teamId, String driverName, int medicCount,
                          String currentStatus, Ambulance ambulance) {
@@ -30,6 +32,7 @@ public class AmbulanceTeam {
         this.medicCount = medicCount;
         this.currentStatus = currentStatus;
         this.ambulance = ambulance;
+        this.selectedHospital = null;
         this.hospitalTransfers = new ArrayList<>();
     }
 
@@ -42,52 +45,88 @@ public class AmbulanceTeam {
         emergency.changeStatus(newStatus);
     }
 
+    public boolean registerPatient(Emergency emergency, Patient patient) {
+
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            return false;
+        }
+
+        if (emergency.getPatients().size() >= emergency.getPatientCount()) {
+            return false;
+        }
+
+        emergency.addPatient(patient);
+
+        return true;
+    }
+
     public AssistanceRecord provideOnSceneAssistance(Emergency emergency) {
 
         AssistanceRecord record = new AssistanceRecord(
-                nextRecordId,
+                IdGenerator.nextAssistanceRecordId(),
                 "On-scene assistance",
                 emergency.getPatientCount()
         );
 
-        nextRecordId++;
         record.recordAssistance();
-
         emergency.addAssistanceRecord(record);
 
         return record;
     }
 
-    // Data layer connection will be implemented later
-
     public List<Hospital> searchHospital(String specialty, int minBeds) {
-        return new ArrayList<>();
+
+        HospitalRepository repository = new HospitalRepository();
+
+        return repository.searchHospitals(specialty, minBeds);
     }
 
     public void selectHospital(Hospital hospital) {
-        // The hospital is passed directly to transferPatients.
+        this.selectedHospital = hospital;
     }
 
     public HospitalTransfer transferPatients(Emergency emergency,
                                              Hospital hospital) {
 
+        Hospital transferHospital = selectedHospital != null
+                ? selectedHospital
+                : hospital;
+
         HospitalTransfer transfer = new HospitalTransfer(
-                nextTransferId,
+                IdGenerator.nextHospitalTransferId(),
                 emergency.getPatientCount(),
-                "",
+                "PENDING",
                 emergency.getPatients(),
                 this,
-                hospital
+                transferHospital
         );
 
-        nextTransferId++;
         transfer.recordTransfer();
+
         hospitalTransfers.add(transfer);
+        emergency.addHospitalTransfer(transfer);
+
+        selectedHospital = null;
 
         return transfer;
     }
 
     public void resolveEmergency(Emergency emergency) {
+
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            return;
+        }
+
+        if (emergency.getAssistanceRecords().isEmpty()) {
+            return;
+        }
+
+        for (HospitalTransfer transfer : emergency.getHospitalTransfers()) {
+            if (!"CONFIRMED".equals(transfer.getTransferStatus())) {
+                return;
+            }
+        }
+
         emergency.changeStatus(EmergencyStatus.RESOLVED);
     }
 }
