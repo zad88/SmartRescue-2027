@@ -1,0 +1,4 @@
+ambulanceId,licensePlate,status,currentLocation
+1,"DEMO-AMB-001","DISPATCHED","Cairo"
+2,"DEMO-AMB-002","DISPATCHED","Giza"
+3,"DEMO-AMB-003","OUT_OF_SERVICE","Cairo"

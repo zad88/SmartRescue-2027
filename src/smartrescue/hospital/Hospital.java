@@ -69,4 +69,12 @@ public class Hospital {
     public List<String> getMedicalSpecialties() {
         return new ArrayList<>(medicalSpecialties);
     }
+
+    public String getName() {
+    return name;
+}
+
+public String getLocation() {
+    return location;
+}
 }

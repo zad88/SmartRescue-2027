@@ -50,11 +50,23 @@ public class HospitalTransferRepository {
     }
 
     public List<HospitalTransfer> loadByEmergencyId(String emergencyId) {
+        return loadByEmergencyId(
+            emergencyId,
+            new PatientRepository().loadByEmergencyId(emergencyId)
+        );
+    }
+
+    public List<HospitalTransfer> loadByEmergencyId(
+            String emergencyId, List<Patient> emergencyPatients) {
+
+        if (emergencyPatients == null) {
+            throw new IllegalArgumentException(
+                "Emergency patient list cannot be null."
+            );
+        }
+
         List<HospitalTransfer> transfers = new ArrayList<>();
         List<String> lines = CsvSupport.readLines(FILE, HEADER);
-
-        List<Patient> emergencyPatients =
-                new PatientRepository().loadByEmergencyId(emergencyId);
 
         for (int i = 1; i < lines.size(); i++) {
             if (lines.get(i).isBlank()) continue;

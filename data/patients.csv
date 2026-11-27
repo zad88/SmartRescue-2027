@@ -1,0 +1,2 @@
+patientId,emergencyId,name,age,condition,treatmentStatus
+"1","INC-016","zad",30,"test","Pending"

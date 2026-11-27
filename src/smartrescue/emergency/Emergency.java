@@ -106,6 +106,10 @@ public class Emergency {
         this.ambulance = ambulance;
     }
 
+    public Ambulance getAmbulance() {
+        return ambulance;
+    }
+
     public String getDetails() {
         return "Incident ID: " + incidentId +
                "\nLocation: " + location +

@@ -1,0 +1,3 @@
+transferId,emergencyId,transferTime,patientCount,transferStatus,hospitalId,patientIds
+9,"INC-014","2026-11-27T21:27:15.020513800",4,"CONFIRMED",2,""
+10,"INC-014","2026-11-27T22:00:25.617033",4,"CONFIRMED",2,""

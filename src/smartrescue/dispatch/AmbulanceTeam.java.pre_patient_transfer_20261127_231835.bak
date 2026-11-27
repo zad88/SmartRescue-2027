@@ -1,0 +1,141 @@
+package smartrescue.dispatch;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import smartrescue.data.AssistanceRecordRepository;
+import smartrescue.data.EmergencyRepository;
+import smartrescue.data.HospitalRepository;
+import smartrescue.data.HospitalTransferRepository;
+import smartrescue.data.IdGenerator;
+import smartrescue.data.PatientRepository;
+import smartrescue.emergency.AssistanceRecord;
+import smartrescue.emergency.Emergency;
+import smartrescue.emergency.EmergencyStatus;
+import smartrescue.hospital.Hospital;
+import smartrescue.transfer.HospitalTransfer;
+import smartrescue.transfer.Patient;
+
+public class AmbulanceTeam {
+
+    private int teamId;
+    private String driverName;
+    private int medicCount;
+    private String currentStatus;
+
+    private Ambulance ambulance;
+    private Hospital selectedHospital;
+    private List<HospitalTransfer> hospitalTransfers;
+
+    public AmbulanceTeam(int teamId, String driverName, int medicCount,
+                         String currentStatus, Ambulance ambulance) {
+        this.teamId = teamId;
+        this.driverName = driverName;
+        this.medicCount = medicCount;
+        this.currentStatus = currentStatus;
+        this.ambulance = ambulance;
+        this.selectedHospital = null;
+        this.hospitalTransfers = new ArrayList<>();
+    }
+
+    public String viewEmergencyDetails(Emergency emergency) {
+        return emergency.getDetails();
+    }
+
+    public void updateEmergencyStatus(Emergency emergency,
+                                      EmergencyStatus newStatus) {
+        emergency.changeStatus(newStatus);
+        new EmergencyRepository().saveEmergency(emergency);
+    }
+
+    public boolean registerPatient(Emergency emergency, Patient patient) {
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            return false;
+        }
+
+        if (emergency.getPatients().size() >= emergency.getPatientCount()) {
+            return false;
+        }
+
+        emergency.addPatient(patient);
+
+        new PatientRepository().savePatient(
+            patient, emergency.getIncidentId()
+        );
+
+        return true;
+    }
+
+    public AssistanceRecord provideOnSceneAssistance(Emergency emergency) {
+        AssistanceRecord record = new AssistanceRecord(
+            IdGenerator.nextAssistanceRecordId(),
+            "On-scene assistance",
+            emergency.getPatientCount()
+        );
+
+        record.recordAssistance();
+        emergency.addAssistanceRecord(record);
+
+        new AssistanceRecordRepository().saveAssistanceRecord(
+            record, emergency.getIncidentId()
+        );
+
+        return record;
+    }
+
+    public List<Hospital> searchHospital(String specialty, int minBeds) {
+        return new HospitalRepository().searchHospitals(specialty, minBeds);
+    }
+
+    public void selectHospital(Hospital hospital) {
+        this.selectedHospital = hospital;
+    }
+
+    public HospitalTransfer transferPatients(Emergency emergency,
+                                             Hospital hospital) {
+        if (!emergency.getHospitalTransfers().isEmpty()) {
+            throw new IllegalStateException(
+                "A patient transfer has already been created for this emergency."
+            );
+        }
+
+        Hospital transferHospital = selectedHospital != null
+                ? selectedHospital : hospital;
+
+        HospitalTransfer transfer = new HospitalTransfer(
+            IdGenerator.nextHospitalTransferId(),
+            emergency.getPatientCount(),
+            "PENDING",
+            emergency.getPatients(),
+            this,
+            transferHospital
+        );
+
+        transfer.recordTransfer();
+        transfer.setEmergencyId(emergency.getIncidentId());
+
+        hospitalTransfers.add(transfer);
+        emergency.addHospitalTransfer(transfer);
+
+        new HospitalTransferRepository().saveTransfer(
+            transfer, emergency.getIncidentId()
+        );
+
+        selectedHospital = null;
+        return transfer;
+    }
+
+    public void resolveEmergency(Emergency emergency) {
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) return;
+        if (emergency.getAssistanceRecords().isEmpty()) return;
+
+        for (HospitalTransfer transfer : emergency.getHospitalTransfers()) {
+            if (!"CONFIRMED".equals(transfer.getTransferStatus())) {
+                return;
+            }
+        }
+
+        emergency.changeStatus(EmergencyStatus.RESOLVED);
+        new EmergencyRepository().saveEmergency(emergency);
+    }
+}

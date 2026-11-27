@@ -4,14 +4,10 @@ import smartrescue.emergency.Emergency;
 
 public class Ambulance {
 
-    // Attributes
-
     private int ambulanceId;
     private String licensePlate;
     private AmbulanceStatus status;
     private String currentLocation;
-
-    // Constructor
 
     public Ambulance(int ambulanceId, String licensePlate,
                      AmbulanceStatus status, String currentLocation) {
@@ -22,23 +18,34 @@ public class Ambulance {
         this.currentLocation = currentLocation;
     }
 
-    // Check ambulance availability
-
     public boolean checkAvailability() {
         return status == AmbulanceStatus.AVAILABLE;
     }
-
-    // Assign ambulance to emergency
 
     public void assignToEmergency(Emergency emergency) {
         emergency.assignAmbulance(this);
         this.status = AmbulanceStatus.DISPATCHED;
     }
 
-    // Release ambulance
-
     public void release() {
         this.status = AmbulanceStatus.AVAILABLE;
     }
 
+    // Getters for repository and GUI access
+
+    public int getAmbulanceId() {
+        return ambulanceId;
+    }
+
+    public String getLicensePlate() {
+        return licensePlate;
+    }
+
+    public AmbulanceStatus getStatus() {
+        return status;
+    }
+
+    public String getCurrentLocation() {
+        return currentLocation;
+    }
 }

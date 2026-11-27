@@ -61,8 +61,26 @@ public class HospitalTransfer {
 
     public void recordConfirmation(HospitalStaff staff) {
         if (!"PENDING".equals(transferStatus)) return;
-        if (staff == null || (staff.getHospital() == null || hospital == null || staff.getHospital().getHospitalId() != hospital.getHospitalId())) return;
-        if (hospital == null || !hospital.canReceivePatients(patientCount)) return;
+        if (staff == null || staff.getHospital() == null
+                || hospital == null
+                || staff.getHospital().getHospitalId() != hospital.getHospitalId()) {
+            return;
+        }
+
+        if (patients.size() != patientCount) return;
+
+        List<Integer> patientIds = new ArrayList<>();
+
+        for (Patient patient : patients) {
+            if (patient == null
+                    || patientIds.contains(patient.getPatientId())) {
+                return;
+            }
+
+            patientIds.add(patient.getPatientId());
+        }
+
+        if (!hospital.canReceivePatients(patientCount)) return;
 
         int updatedBeds = hospital.getAvailableBeds() - patientCount;
         int updatedCapacity = hospital.getEmergencyCapacity() - patientCount;

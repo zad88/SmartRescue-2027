@@ -49,19 +49,37 @@ public class AmbulanceTeam {
     }
 
     public boolean registerPatient(Emergency emergency, Patient patient) {
+        if (emergency == null || patient == null) {
+            return false;
+        }
+
         if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
             return false;
         }
 
-        if (emergency.getPatients().size() >= emergency.getPatientCount()) {
+        List<Patient> registeredPatients = emergency.getPatients();
+
+        if (registeredPatients.size() >= emergency.getPatientCount()) {
             return false;
         }
 
-        emergency.addPatient(patient);
+        for (Patient registeredPatient : registeredPatients) {
+            if (registeredPatient == null
+                    || registeredPatient.getPatientId() == patient.getPatientId()) {
+                return false;
+            }
+        }
+
+        if (patient.getEmergencyId() != null
+                && !patient.getEmergencyId().equals(emergency.getIncidentId())) {
+            return false;
+        }
 
         new PatientRepository().savePatient(
             patient, emergency.getIncidentId()
         );
+
+        emergency.addPatient(patient);
 
         return true;
     }
@@ -93,6 +111,52 @@ public class AmbulanceTeam {
 
     public HospitalTransfer transferPatients(Emergency emergency,
                                              Hospital hospital) {
+        if (emergency == null) {
+            throw new IllegalArgumentException(
+                "Emergency is required."
+            );
+        }
+
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            throw new IllegalStateException(
+                "Patients can only be transferred when the emergency is on scene."
+            );
+        }
+
+        if (!emergency.getHospitalTransfers().isEmpty()) {
+            throw new IllegalStateException(
+                "A patient transfer has already been created for this emergency."
+            );
+        }
+
+        List<Patient> registeredPatients = emergency.getPatients();
+
+        if (registeredPatients.size() != emergency.getPatientCount()) {
+            throw new IllegalStateException(
+                "Transfer blocked: the emergency reports "
+                + emergency.getPatientCount()
+                + " patients, but only "
+                + registeredPatients.size()
+                + " patient records are registered."
+            );
+        }
+
+        List<Integer> registeredPatientIds = new ArrayList<>();
+
+        for (Patient patient : registeredPatients) {
+            if (patient == null
+                    || patient.getEmergencyId() == null
+                    || !patient.getEmergencyId().equals(emergency.getIncidentId())
+                    || registeredPatientIds.contains(patient.getPatientId())) {
+                throw new IllegalStateException(
+                    "Transfer blocked: patient records are missing, duplicated, "
+                    + "or linked to a different emergency."
+                );
+            }
+
+            registeredPatientIds.add(patient.getPatientId());
+        }
+
         Hospital transferHospital = selectedHospital != null
                 ? selectedHospital : hospital;
 
@@ -100,7 +164,7 @@ public class AmbulanceTeam {
             IdGenerator.nextHospitalTransferId(),
             emergency.getPatientCount(),
             "PENDING",
-            emergency.getPatients(),
+            registeredPatients,
             this,
             transferHospital
         );

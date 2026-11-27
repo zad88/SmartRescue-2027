@@ -1,0 +1,3 @@
+incidentId,location,description,reportedAt,type,severity,patientCount,status,ambulanceId
+"INC-014","Cairo","etgrete","2026-11-27T20:44:51.054218900","sgvserd","HIGH",4,"CLOSED","1"
+"INC-016","Cairo","ringroad","2026-11-27T22:35:43.977435500","ffff","HIGH",6,"ON_SCENE","2"

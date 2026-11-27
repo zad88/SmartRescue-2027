@@ -16,6 +16,7 @@ public class IdGenerator {
     private static final String INCIDENT = "incident";
     private static final String ASSISTANCE = "assistance";
     private static final String TRANSFER = "transfer";
+    private static final String PATIENT = "patient";
 
     private static int generateNextId(String idType) {
 
@@ -27,6 +28,7 @@ public class IdGenerator {
             counters.put(INCIDENT, 0);
             counters.put(ASSISTANCE, 0);
             counters.put(TRANSFER, 0);
+            counters.put(PATIENT, 0);
 
             if (Files.exists(FILE_PATH)) {
 
@@ -91,5 +93,9 @@ public class IdGenerator {
 
     public static synchronized int nextHospitalTransferId() {
         return generateNextId(TRANSFER);
+    }
+
+    public static synchronized int nextPatientId() {
+        return generateNextId(PATIENT);
     }
 }

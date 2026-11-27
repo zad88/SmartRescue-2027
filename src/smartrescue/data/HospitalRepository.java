@@ -18,6 +18,31 @@ public class HospitalRepository {
         this.filePath = Paths.get("data", "hospitals.csv");
     }
 
+    public List<Hospital> loadAllHospitals() {
+        List<Hospital> hospitals = new ArrayList<>();
+
+        try (BufferedReader reader = Files.newBufferedReader(filePath)) {
+            String line;
+            reader.readLine();
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                String[] fields = parseCsvLine(line);
+
+                if (fields.length == 6) {
+                    hospitals.add(convertFromCsv(fields));
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                "Could not read hospitals.csv", e
+            );
+        }
+
+        return hospitals;
+    }
+
     public List<Hospital> searchHospitals(String specialty, int minBeds) {
         List<Hospital> matchingHospitals = new ArrayList<>();
 
@@ -84,6 +109,7 @@ public class HospitalRepository {
         int emergencyCapacity = Integer.parseInt(fields[4].trim());
 
         List<String> specialties = new ArrayList<>();
+
         for (String value : fields[5].split(";")) {
             specialties.add(value.trim());
         }

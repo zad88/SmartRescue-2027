@@ -1,0 +1,2 @@
+incidentId,location,description,reportedAt,type,severity,patientCount,status
+"INC-014","Cairo","etgrete","2026-11-27T20:44:51.054218900","sgvserd","HIGH",4,"VERIFIED"
