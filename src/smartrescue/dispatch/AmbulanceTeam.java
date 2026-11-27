@@ -53,6 +53,8 @@ public class AmbulanceTeam {
         nextRecordId++;
         record.recordAssistance();
 
+        emergency.addAssistanceRecord(record);
+
         return record;
     }
 
@@ -88,5 +90,4 @@ public class AmbulanceTeam {
     public void resolveEmergency(Emergency emergency) {
         emergency.changeStatus(EmergencyStatus.RESOLVED);
     }
-
 }

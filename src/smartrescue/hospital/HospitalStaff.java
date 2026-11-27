@@ -1,12 +1,12 @@
 package smartrescue.hospital;
 
 import java.util.List;
+import smartrescue.Person;
 import smartrescue.transfer.HospitalTransfer;
 
-public class HospitalStaff {
+public class HospitalStaff extends Person {
 
     private int staffId;
-    private String fullName;
     private String role;
     private String department;
 
@@ -15,8 +15,9 @@ public class HospitalStaff {
     public HospitalStaff(int staffId, String fullName, String role,
                          String department, Hospital hospital) {
 
+        super(fullName);
+
         this.staffId = staffId;
-        this.fullName = fullName;
         this.role = role;
         this.department = department;
         this.hospital = hospital;
@@ -31,5 +32,4 @@ public class HospitalStaff {
     public void confirmPatientTransfer(HospitalTransfer transfer) {
         transfer.recordConfirmation(this);
     }
-
 }

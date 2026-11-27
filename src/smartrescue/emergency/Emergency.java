@@ -16,18 +16,16 @@ public class Emergency {
     private Severity severity;
     private int patientCount;
     private EmergencyStatus status;
+
     private Ambulance ambulance;
     private List<Patient> patients;
+    private List<AssistanceRecord> assistanceRecords;
 
     private static int nextIncidentNumber = 1;
-
-    // Constructor used when the Witness reports an emergency
 
     public Emergency(String location, String description, int patientCount) {
         this(location, description, null, null, patientCount);
     }
-
-    // Constructor with classification
 
     public Emergency(String location, String description, String type,
                      Severity severity, int patientCount) {
@@ -40,8 +38,10 @@ public class Emergency {
         this.severity = severity;
         this.patientCount = patientCount;
         this.status = EmergencyStatus.REPORTED;
+
         this.ambulance = null;
         this.patients = new ArrayList<>();
+        this.assistanceRecords = new ArrayList<>();
     }
 
     public String generateIncidentId() {
@@ -81,11 +81,28 @@ public class Emergency {
         return new ArrayList<>(patients);
     }
 
-    // Allows the Operator to classify the emergency
+    public void addAssistanceRecord(AssistanceRecord record) {
+        assistanceRecords.add(record);
+    }
+
+    public List<AssistanceRecord> getAssistanceRecords() {
+        return new ArrayList<>(assistanceRecords);
+    }
 
     public void setClassification(String type, Severity severity) {
         this.type = type;
         this.severity = severity;
     }
 
+    public EmergencyStatus getStatus() {
+        return status;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public Severity getSeverity() {
+        return severity;
+    }
 }
