@@ -3,7 +3,10 @@ package smartrescue.gui;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -16,8 +19,6 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListCellRenderer;
 
-import smartrescue.data.EmergencyRepository;
-import smartrescue.data.IdGenerator;
 import smartrescue.dispatch.Ambulance;
 import smartrescue.dispatch.AmbulanceTeam;
 import smartrescue.emergency.AssistanceRecord;
@@ -26,19 +27,21 @@ import smartrescue.emergency.EmergencyStatus;
 import smartrescue.hospital.Hospital;
 import smartrescue.transfer.HospitalTransfer;
 import smartrescue.transfer.Patient;
+import smartrescue.service.PortalService;
 
 public class AmbulanceConsoleFrame extends JFrame {
 
     private final AmbulanceTeam team;
     private final Ambulance ambulance;
-    private final EmergencyRepository emergencyRepository;
+    private final PortalService service;
 
     private JComboBox<Emergency> emergencyComboBox;
     private JComboBox<Hospital> hospitalComboBox;
+    private JComboBox<String> specialtyComboBox;
 
     private JTextArea detailsArea;
-    private JTextField specialtyField;
     private JTextField minBedsField;
+    private boolean refreshingSpecialties;
 
     private JButton updateStatusButton;
     private JButton assistanceButton;
@@ -52,7 +55,7 @@ public class AmbulanceConsoleFrame extends JFrame {
 
         this.team = team;
         this.ambulance = ambulance;
-        this.emergencyRepository = new EmergencyRepository();
+        this.service = new PortalService();
 
         setTitle("SmartRescue 2027 - Ambulance Console");
         setSize(950, 650);
@@ -60,7 +63,9 @@ public class AmbulanceConsoleFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         initializeComponents();
+        refreshSpecialties(service.loadHospitals());
         refreshEmergencies();
+        AutoRefresh.start(this, service, this::refreshConsole);
     }
 
     private void initializeComponents() {
@@ -87,6 +92,8 @@ public class AmbulanceConsoleFrame extends JFrame {
                         emergency.getIncidentId()
                         + " - " + emergency.getStatus()
                         + " - " + emergency.getLocation()
+                        + (emergency.getAmbulance() == null
+                                ? " - Unassigned" : "")
                 );
             }
 
@@ -108,7 +115,15 @@ public class AmbulanceConsoleFrame extends JFrame {
 
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        specialtyField = new JTextField(12);
+        specialtyComboBox = new JComboBox<>();
+        specialtyComboBox.setPrototypeDisplayValue("Choose a specialty");
+        specialtyComboBox.addActionListener(event -> {
+            if (!refreshingSpecialties) {
+                hospitalComboBox.removeAllItems();
+                team.selectHospital(null);
+                displaySelectedEmergency();
+            }
+        });
         minBedsField = new JTextField("1", 5);
 
         searchHospitalButton = new JButton("Search Hospitals");
@@ -117,7 +132,7 @@ public class AmbulanceConsoleFrame extends JFrame {
         );
 
         searchPanel.add(new JLabel("Specialty:"));
-        searchPanel.add(specialtyField);
+        searchPanel.add(specialtyComboBox);
         searchPanel.add(new JLabel("Minimum Beds:"));
         searchPanel.add(minBedsField);
         searchPanel.add(searchHospitalButton);
@@ -156,9 +171,7 @@ public class AmbulanceConsoleFrame extends JFrame {
             Hospital selectedHospital =
                     (Hospital) hospitalComboBox.getSelectedItem();
 
-            if (selectedHospital != null) {
-                team.selectHospital(selectedHospital);
-            }
+            team.selectHospital(selectedHospital);
 
             displaySelectedEmergency();
         });
@@ -209,7 +222,7 @@ public class AmbulanceConsoleFrame extends JFrame {
                 event -> resolveEmergency()
         );
 
-        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 3, 5, 5));
 
         buttonPanel.add(refreshButton);
         buttonPanel.add(updateStatusButton);
@@ -223,28 +236,152 @@ public class AmbulanceConsoleFrame extends JFrame {
 
     private void refreshEmergencies() {
 
+        Emergency selected = (Emergency) emergencyComboBox.getSelectedItem();
+        String selectedId = selected == null ? null : selected.getIncidentId();
         emergencyComboBox.removeAllItems();
 
         List<Emergency> emergencies =
-                emergencyRepository.loadAllEmergencies();
+                service.loadEmergencies();
 
         for (Emergency emergency : emergencies) {
 
-            if (emergency.getAmbulance() != null
-                    && emergency.getAmbulance().getAmbulanceId()
-                            == ambulance.getAmbulanceId()) {
-
+            if (isVisibleToAmbulance(emergency, ambulance)) {
                 emergencyComboBox.addItem(emergency);
+                if (emergency.getIncidentId().equals(selectedId)) {
+                    emergencyComboBox.setSelectedItem(emergency);
+                }
             }
         }
 
         if (emergencyComboBox.getItemCount() == 0) {
             detailsArea.setText(
-                    "No emergencies are currently assigned to this ambulance."
+                    "No active unassigned emergencies or emergencies assigned to this ambulance."
             );
         }
 
         displaySelectedEmergency();
+    }
+
+    private void refreshConsole() {
+        List<Hospital> hospitals = service.loadHospitals();
+        refreshSpecialties(hospitals);
+        List<Integer> ids = new ArrayList<>();
+        for (int i = 0; i < hospitalComboBox.getItemCount(); i++) {
+            ids.add(hospitalComboBox.getItemAt(i).getHospitalId());
+        }
+        Hospital selected = (Hospital) hospitalComboBox.getSelectedItem();
+        Integer selectedId = selected == null ? null : selected.getHospitalId();
+        if (!ids.isEmpty()) {
+            hospitalComboBox.removeAllItems();
+            for (Hospital hospital : hospitals) {
+                if (ids.contains(hospital.getHospitalId())) {
+                    hospitalComboBox.addItem(hospital);
+                    if (Integer.valueOf(hospital.getHospitalId()).equals(selectedId)) {
+                        hospitalComboBox.setSelectedItem(hospital);
+                    }
+                }
+            }
+        }
+        refreshEmergencies();
+    }
+
+    static List<String> specialtiesFor(List<Hospital> hospitals) {
+        Set<String> specialties = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Hospital hospital : hospitals) {
+            for (String specialty : hospital.getMedicalSpecialties()) {
+                if (!specialty.isBlank()) {
+                    specialties.add(specialty.trim());
+                }
+            }
+        }
+        return new ArrayList<>(specialties);
+    }
+
+    private void refreshSpecialties(List<Hospital> hospitals) {
+        List<String> specialties = specialtiesFor(hospitals);
+        String previous = (String) specialtyComboBox.getSelectedItem();
+        boolean unchanged = specialtyComboBox.getItemCount() == specialties.size();
+        for (int i = 0; unchanged && i < specialties.size(); i++) {
+            unchanged = specialties.get(i).equals(specialtyComboBox.getItemAt(i));
+        }
+        if (unchanged) {
+            return;
+        }
+
+        refreshingSpecialties = true;
+        specialtyComboBox.removeAllItems();
+        for (String specialty : specialties) {
+            specialtyComboBox.addItem(specialty);
+            if (previous != null && specialty.equalsIgnoreCase(previous)) {
+                specialtyComboBox.setSelectedItem(specialty);
+            }
+        }
+        refreshingSpecialties = false;
+
+        String selected = (String) specialtyComboBox.getSelectedItem();
+        if (previous != null && (selected == null || !previous.equalsIgnoreCase(selected))) {
+            hospitalComboBox.removeAllItems();
+            team.selectHospital(null);
+        }
+    }
+
+    static boolean isVisibleToAmbulance(Emergency emergency, Ambulance ambulance) {
+        return emergency.getStatus() != EmergencyStatus.RESOLVED
+                && emergency.getStatus() != EmergencyStatus.CLOSED
+                && (emergency.getAmbulance() == null
+                    || isAssignedToAmbulance(emergency, ambulance));
+    }
+
+    static boolean isAssignedToAmbulance(Emergency emergency, Ambulance ambulance) {
+        return emergency.getAmbulance() != null
+                && emergency.getAmbulance().getAmbulanceId()
+                        == ambulance.getAmbulanceId();
+    }
+
+    static String transferProblem(Emergency emergency, Ambulance ambulance, Hospital hospital) {
+        if (emergency == null) {
+            return "Select an incident first.";
+        }
+        if (!isAssignedToAmbulance(emergency, ambulance)) {
+            return "An operator must assign this ambulance to the incident.";
+        }
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            return "The incident must be ON_SCENE.";
+        }
+        if (!emergency.getHospitalTransfers().isEmpty()) {
+            return "A transfer has already been created for this incident.";
+        }
+        if (emergency.getPatients().size() != emergency.getPatientCount()) {
+            return "Register all reported patients first ("
+                    + emergency.getPatients().size() + " of "
+                    + emergency.getPatientCount() + " registered).";
+        }
+        if (hospital == null) {
+            return "Choose a specialty, search hospitals and select a matching hospital.";
+        }
+        return null;
+    }
+
+    static String resolutionProblem(Emergency emergency, Ambulance ambulance) {
+        if (emergency == null) {
+            return "The incident was not found. Refresh and select it again.";
+        }
+        if (!isAssignedToAmbulance(emergency, ambulance)) {
+            return "An operator must assign this ambulance to the incident.";
+        }
+        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            return "The incident must be ON_SCENE before it can be resolved.";
+        }
+        if (emergency.getAssistanceRecords().isEmpty()) {
+            return "Record On-Scene Assistance before resolving this incident.";
+        }
+        for (HospitalTransfer transfer : emergency.getHospitalTransfers()) {
+            if (!"CONFIRMED".equals(transfer.getTransferStatus())) {
+                return "Hospital transfer " + transfer.getTransferId()
+                        + " must be confirmed before resolving this incident.";
+            }
+        }
+        return null;
     }
 
     private void displaySelectedEmergency() {
@@ -264,6 +401,11 @@ public class AmbulanceConsoleFrame extends JFrame {
         StringBuilder details = new StringBuilder(
                 team.viewEmergencyDetails(emergency)
         );
+
+        if (emergency.getAmbulance() == null) {
+            details.append("\n\nUnassigned: an operator must assign this ambulance "
+                    + "before the team can respond.");
+        }
 
         details.append("\n\nOn-Scene Assistance Records:");
 
@@ -318,43 +460,63 @@ public class AmbulanceConsoleFrame extends JFrame {
             }
         }
 
+        details.append("\n\nHospital Transfers:");
+        if (emergency.getHospitalTransfers().isEmpty()) {
+            details.append("\nNo hospital transfer.");
+        } else {
+            for (HospitalTransfer transfer : emergency.getHospitalTransfers()) {
+                details.append("\nTransfer ID: ").append(transfer.getTransferId())
+                        .append(" | Status: ").append(transfer.getTransferStatus());
+                if (transfer.getHospital() != null) {
+                    details.append(" | Hospital: ").append(transfer.getHospital().getName());
+                }
+            }
+        }
+
+        String transferProblem = transferProblem(emergency, ambulance, selectedHospital);
+        details.append("\n\nTransfer Patients: ")
+                .append(transferProblem == null ? "Ready to transfer." : transferProblem);
+
+        String resolutionProblem = resolutionProblem(emergency, ambulance);
+        details.append("\n\nResolve Emergency: ")
+                .append(resolutionProblem == null ? "Ready to resolve." : resolutionProblem);
+
         detailsArea.setText(details.toString());
 
-        updateStatusButton.setEnabled(
+        boolean assigned = isAssignedToAmbulance(emergency, ambulance);
+
+        updateStatusButton.setEnabled(assigned &&
                 emergency.getStatus() == EmergencyStatus.RESPONDING
         );
 
-        assistanceButton.setEnabled(
+        assistanceButton.setEnabled(assigned &&
                 emergency.getStatus() == EmergencyStatus.ON_SCENE
         );
 
-        registerPatientButton.setEnabled(
+        registerPatientButton.setEnabled(assigned &&
                 emergency.getStatus() == EmergencyStatus.ON_SCENE
                 && emergency.getPatients().size() < emergency.getPatientCount()
                 && emergency.getHospitalTransfers().isEmpty()
         );
 
-        transferPatientsButton.setEnabled(
+        transferPatientsButton.setEnabled(assigned &&
                 emergency.getStatus() == EmergencyStatus.ON_SCENE
-                && selectedHospital != null
-                && emergency.getPatients().size() == emergency.getPatientCount()
-                && emergency.getHospitalTransfers().isEmpty()
         );
 
-        resolveEmergencyButton.setEnabled(
+        resolveEmergencyButton.setEnabled(assigned &&
                 emergency.getStatus() == EmergencyStatus.ON_SCENE
         );
     }
 
     private void searchHospitals() {
 
-        String specialty = specialtyField.getText().trim();
+        String specialty = (String) specialtyComboBox.getSelectedItem();
         String minBedsText = minBedsField.getText().trim();
 
-        if (specialty.isEmpty()) {
+        if (specialty == null) {
             JOptionPane.showMessageDialog(
                     this,
-                    "Please enter a medical specialty."
+                    "No medical specialties are available. Update a hospital's specialties first."
             );
             return;
         }
@@ -368,6 +530,11 @@ public class AmbulanceConsoleFrame extends JFrame {
                     this,
                     "Minimum beds must be an integer."
             );
+            return;
+        }
+
+        if (minBeds <= 0) {
+            JOptionPane.showMessageDialog(this, "Minimum beds must be greater than zero.");
             return;
         }
 
@@ -518,7 +685,7 @@ public class AmbulanceConsoleFrame extends JFrame {
             return;
         }
 
-        int patientId = IdGenerator.nextPatientId();
+        int patientId = service.nextPatientId();
 
         Patient patient = new Patient(
                 patientId,
@@ -530,8 +697,6 @@ public class AmbulanceConsoleFrame extends JFrame {
         );
 
         if (team.registerPatient(emergency, patient)) {
-
-            emergencyRepository.saveEmergency(emergency);
 
             JOptionPane.showMessageDialog(
                     this,
@@ -563,8 +728,36 @@ public class AmbulanceConsoleFrame extends JFrame {
             return;
         }
 
-        AssistanceRecord record =
-                team.provideOnSceneAssistance(emergency);
+        JTextField description = new JTextField(24);
+        JTextField treated = new JTextField(
+                String.valueOf(emergency.getPatientCount()), 5);
+        JPanel form = new JPanel(new GridLayout(2, 2, 5, 5));
+        form.add(new JLabel("Assistance provided:"));
+        form.add(description);
+        form.add(new JLabel("Patients treated:"));
+        form.add(treated);
+        if (JOptionPane.showConfirmDialog(this, form, "On-Scene Assistance",
+                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        int count;
+        try {
+            count = Integer.parseInt(treated.getText().trim());
+        } catch (NumberFormatException exception) {
+            JOptionPane.showMessageDialog(this, "Enter a valid number of patients treated.");
+            return;
+        }
+        if (description.getText().isBlank() || count < 0
+                || count > emergency.getPatientCount()) {
+            JOptionPane.showMessageDialog(this,
+                    "Enter assistance details and a patient count from 0 to "
+                    + emergency.getPatientCount() + ".");
+            return;
+        }
+
+        AssistanceRecord record = team.provideOnSceneAssistance(
+                emergency, description.getText().trim(), count);
 
         JOptionPane.showMessageDialog(
                 this,
@@ -585,19 +778,12 @@ public class AmbulanceConsoleFrame extends JFrame {
         Hospital hospital =
                 (Hospital) hospitalComboBox.getSelectedItem();
 
-        if (emergency == null || hospital == null) {
-            return;
-        }
-
-        if (emergency.getStatus() != EmergencyStatus.ON_SCENE) {
-            return;
-        }
-
-        if (!emergency.getHospitalTransfers().isEmpty()) {
+        String problem = transferProblem(emergency, ambulance, hospital);
+        if (problem != null) {
             JOptionPane.showMessageDialog(
                     this,
-                    "A patient transfer has already been created for this emergency.",
-                    "Transfer Already Exists",
+                    problem,
+                    "Transfer Not Ready",
                     JOptionPane.WARNING_MESSAGE
             );
             return;
@@ -619,7 +805,7 @@ public class AmbulanceConsoleFrame extends JFrame {
             JOptionPane.showMessageDialog(
                     this,
                     exception.getMessage(),
-                    "Transfer Already Exists",
+                    "Transfer Failed",
                     JOptionPane.WARNING_MESSAGE
             );
         }
@@ -632,8 +818,17 @@ public class AmbulanceConsoleFrame extends JFrame {
         Emergency emergency =
                 (Emergency) emergencyComboBox.getSelectedItem();
 
-        if (emergency == null
-                || emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+        if (emergency == null) {
+            return;
+        }
+
+        String incidentId = emergency.getIncidentId();
+        emergency = service.findEmergencyById(incidentId);
+        String problem = resolutionProblem(emergency, ambulance);
+        if (problem != null) {
+            JOptionPane.showMessageDialog(this, problem,
+                    "Emergency Not Ready", JOptionPane.WARNING_MESSAGE);
+            refreshEmergencies();
             return;
         }
 
@@ -649,13 +844,19 @@ public class AmbulanceConsoleFrame extends JFrame {
             return;
         }
 
+        emergency = service.findEmergencyById(incidentId);
+        problem = resolutionProblem(emergency, ambulance);
+        if (problem != null) {
+            JOptionPane.showMessageDialog(this, problem,
+                    "Emergency Not Ready", JOptionPane.WARNING_MESSAGE);
+            refreshEmergencies();
+            return;
+        }
+
         // Call the existing AmbulanceTeam business method.
         team.resolveEmergency(emergency);
 
         if (emergency.getStatus() == EmergencyStatus.RESOLVED) {
-
-            // Persist only after the backend successfully resolves it.
-            emergencyRepository.saveEmergency(emergency);
 
             JOptionPane.showMessageDialog(
                     this,

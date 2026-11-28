@@ -1,0 +1,6 @@
+teamId,ambulanceId,driverName,medicCount,currentStatus
+1,1,"Demo Driver 1",2,"On Duty"
+2,2,"Demo Driver 2",2,"On Duty"
+3,3,"Demo Driver 3",2,"On Duty"
+4,4,"Demo Driver 4",2,"On Duty"
+5,5,"Demo Driver 5",2,"On Duty"

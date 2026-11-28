@@ -169,6 +169,16 @@ public class WitnessReportingFrame extends JFrame {
             return;
         }
 
+        if (injuredCount <= 0) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The number of injured people must be greater than zero.",
+                    "Invalid Number",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
         // Call the existing backend method.
         Emergency emergency = witness.reportEmergency(
                 location,

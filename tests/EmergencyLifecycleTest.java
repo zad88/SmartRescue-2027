@@ -1,3 +1,5 @@
+import java.time.LocalDateTime;
+
 import smartrescue.emergency.Emergency;
 import smartrescue.emergency.EmergencyStatus;
 
@@ -5,34 +7,26 @@ public class EmergencyLifecycleTest {
 
     public static void main(String[] args) {
 
-        Emergency emergency = new Emergency(
-            "Cairo", "Car accident", 2
-        );
-
-        System.out.println("Initial: " + emergency.getStatus());
-
-        // Invalid transition: REPORTED -> CLOSED
+        Emergency emergency = new Emergency("test", "Cairo", "Accident",
+                LocalDateTime.now(), null, null, 2, EmergencyStatus.REPORTED);
         emergency.changeStatus(EmergencyStatus.CLOSED);
-        System.out.println("After invalid CLOSED: " + emergency.getStatus());
-
-        // Valid transitions
-        emergency.changeStatus(EmergencyStatus.VERIFIED);
-        System.out.println("After VERIFIED: " + emergency.getStatus());
-
-        emergency.changeStatus(EmergencyStatus.RESPONDING);
-        System.out.println("After RESPONDING: " + emergency.getStatus());
-
-        emergency.changeStatus(EmergencyStatus.ON_SCENE);
-        System.out.println("After ON_SCENE: " + emergency.getStatus());
-
-        emergency.changeStatus(EmergencyStatus.RESOLVED);
-        System.out.println("After RESOLVED: " + emergency.getStatus());
-
-        emergency.changeStatus(EmergencyStatus.CLOSED);
-        System.out.println("After CLOSED: " + emergency.getStatus());
-
-        // Invalid transition after closure
+        check(emergency.getStatus() == EmergencyStatus.REPORTED,
+                "A reported incident cannot be closed directly.");
+        for (EmergencyStatus next : new EmergencyStatus[] {
+                EmergencyStatus.VERIFIED, EmergencyStatus.RESPONDING,
+                EmergencyStatus.ON_SCENE, EmergencyStatus.RESOLVED, EmergencyStatus.CLOSED }) {
+            emergency.changeStatus(next);
+            check(emergency.getStatus() == next, "Transition to " + next + " failed.");
+        }
         emergency.changeStatus(EmergencyStatus.REPORTED);
-        System.out.println("After invalid REPORTED: " + emergency.getStatus());
+        check(emergency.getStatus() == EmergencyStatus.CLOSED,
+                "A closed incident cannot be reopened.");
+        System.out.println("PASS: Emergency lifecycle transitions");
+    }
+
+    private static void check(boolean condition, String message) {
+        if (!condition) {
+            throw new AssertionError(message);
+        }
     }
 }

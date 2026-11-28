@@ -1,3 +1,3 @@
 hospitalId,name,location,availableBeds,emergencyCapacity,medicalSpecialties
-1,Cairo Hospital,Cairo,20,15,Cardiology;Emergency
-2,City Hospital,Giza,2,0,Emergency;Surgery
+1,Cairo Hospital,Cairo,13,8,Cardiology;Emergency;Neurology;Orthopedics;Pediatrics;Surgery
+2,City Hospital,Giza,20,15,Cardiology;Emergency;Neurology;Orthopedics;Pediatrics;Surgery

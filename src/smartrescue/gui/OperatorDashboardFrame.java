@@ -24,22 +24,21 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 
-import smartrescue.data.AmbulanceRepository;
-import smartrescue.data.EmergencyRepository;
 import smartrescue.dispatch.Ambulance;
+import smartrescue.dispatch.AmbulanceReleaseService;
 import smartrescue.dispatch.AmbulanceStatus;
 import smartrescue.dispatch.Operator;
 import smartrescue.emergency.Emergency;
 import smartrescue.emergency.EmergencyStatus;
 import smartrescue.emergency.Severity;
+import smartrescue.service.PortalService;
 
 public class OperatorDashboardFrame extends JFrame {
 
     private static final long serialVersionUID = 1L;
 
     private final Operator operator;
-    private final EmergencyRepository repository;
-    private final AmbulanceRepository ambulanceRepository;
+    private final PortalService service;
 
     private List<Emergency> emergencies;
 
@@ -50,6 +49,7 @@ public class OperatorDashboardFrame extends JFrame {
     private JTextField typeField;
     private JComboBox<Severity> severityComboBox;
     private JComboBox<Ambulance> ambulanceComboBox;
+    private JLabel ambulanceAvailabilityLabel;
 
     private JButton classifyButton;
     private JButton verifyButton;
@@ -61,14 +61,14 @@ public class OperatorDashboardFrame extends JFrame {
         super("SmartRescue 2027 - Operator Dashboard");
 
         this.operator = operator;
-        this.repository = new EmergencyRepository();
-        this.ambulanceRepository = new AmbulanceRepository();
+        this.service = new PortalService();
         this.emergencies = new ArrayList<>();
 
         initializeUI();
 
         refreshEmergencies(null);
         refreshAmbulances();
+        AutoRefresh.start(this, service, this::refreshAll);
     }
 
     private void initializeUI() {
@@ -235,10 +235,14 @@ public class OperatorDashboardFrame extends JFrame {
                 BorderLayout.CENTER
         );
 
-        assignmentPanel.add(
-                assignAmbulanceButton,
-                BorderLayout.SOUTH
-        );
+        ambulanceAvailabilityLabel = new JLabel();
+        JPanel assignmentActions = new JPanel(new GridLayout(3, 1, 5, 5));
+        assignmentActions.add(ambulanceAvailabilityLabel);
+        assignmentActions.add(assignAmbulanceButton);
+        JButton recoverAmbulancesButton = new JButton("Release Completed Ambulances");
+        recoverAmbulancesButton.addActionListener(event -> releaseCompletedAmbulances());
+        assignmentActions.add(recoverAmbulancesButton);
+        assignmentPanel.add(assignmentActions, BorderLayout.SOUTH);
 
         // Arrange classification and assignment controls
         JPanel controlsPanel = new JPanel(
@@ -295,14 +299,31 @@ public class OperatorDashboardFrame extends JFrame {
     private void refreshAll() {
 
         String selectedId = getSelectedIncidentId();
+        String pendingType = typeField.getText();
+        Severity pendingSeverity = (Severity) severityComboBox.getSelectedItem();
+        Ambulance selectedAmbulance = (Ambulance) ambulanceComboBox.getSelectedItem();
+        Integer ambulanceId = selectedAmbulance == null ? null : selectedAmbulance.getAmbulanceId();
 
         refreshEmergencies(selectedId);
         refreshAmbulances();
+        if (selectedId != null && selectedId.equals(getSelectedIncidentId())) {
+            typeField.setText(pendingType);
+            severityComboBox.setSelectedItem(pendingSeverity);
+        }
+        if (ambulanceId != null) {
+            for (int i = 0; i < ambulanceComboBox.getItemCount(); i++) {
+                if (ambulanceComboBox.getItemAt(i).getAmbulanceId() == ambulanceId) {
+                    ambulanceComboBox.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+        updateButtonStates();
     }
 
     private void refreshEmergencies(String selectedId) {
 
-        emergencies = repository.loadAllEmergencies();
+        emergencies = service.loadEmergencies();
 
         tableModel.setRowCount(0);
 
@@ -352,7 +373,7 @@ public class OperatorDashboardFrame extends JFrame {
         ambulanceComboBox.removeAllItems();
 
         List<Ambulance> ambulances =
-                ambulanceRepository.loadAllAmbulances();
+                service.loadAmbulances();
 
         for (Ambulance ambulance : ambulances) {
 
@@ -361,7 +382,49 @@ public class OperatorDashboardFrame extends JFrame {
             }
         }
 
+        ambulanceAvailabilityLabel.setText(ambulanceComboBox.getItemCount() == 0
+                ? "No available ambulances. Refresh or release completed ambulances."
+                : ambulanceComboBox.getItemCount() + " ambulance(s) available.");
         updateButtonStates();
+    }
+
+    private void releaseCompletedAmbulances() {
+        AmbulanceReleaseService service = new AmbulanceReleaseService();
+        List<Ambulance> ambulances = service.findReleasableAmbulances();
+
+        if (ambulances.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "No dispatched ambulances have completed assignments without active incidents.");
+            return;
+        }
+
+        StringBuilder ids = new StringBuilder();
+        for (Ambulance ambulance : ambulances) {
+            if (ids.length() > 0) {
+                ids.append(", ");
+            }
+            ids.append(ambulance.getAmbulanceId());
+        }
+
+        int confirmation = JOptionPane.showConfirmDialog(this,
+                "Make these ambulances available: " + ids + "?\n"
+                + "They have completed assignments and no active incidents.",
+                "Release Completed Ambulances", JOptionPane.YES_NO_OPTION);
+        if (confirmation != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        int released = 0;
+        for (Ambulance ambulance : ambulances) {
+            if (service.releaseAmbulance(ambulance.getAmbulanceId())) {
+                released++;
+            }
+        }
+        refreshAll();
+        JOptionPane.showMessageDialog(this, released + " ambulance(s) made available."
+                + (released < ambulances.size()
+                    ? "\nSome were no longer eligible; refresh and check their assignments."
+                    : ""));
     }
 
     private void displaySelectedEmergency() {
@@ -378,7 +441,14 @@ public class OperatorDashboardFrame extends JFrame {
 
         Emergency emergency = emergencies.get(selectedRow);
 
-        detailsArea.setText(emergency.getDetails());
+        StringBuilder details = new StringBuilder(emergency.getDetails());
+        if (!emergency.getHospitalTransfers().isEmpty()) {
+            details.append("\n\nHospital Transfers:");
+            emergency.getHospitalTransfers().forEach(transfer ->
+                    details.append("\nTransfer ID: ").append(transfer.getTransferId())
+                            .append(" | Status: ").append(transfer.getTransferStatus()));
+        }
+        detailsArea.setText(details.toString());
 
         typeField.setText(
                 emergency.getType() == null
@@ -532,9 +602,6 @@ public class OperatorDashboardFrame extends JFrame {
             return;
         }
 
-        // Persist the updated ambulance status.
-        ambulanceRepository.saveAmbulance(ambulance);
-
         JOptionPane.showMessageDialog(
                 this,
                 "Ambulance assigned successfully.\n"
@@ -577,9 +644,6 @@ public class OperatorDashboardFrame extends JFrame {
         operator.closeEmergency(emergency);
 
         if (emergency.getStatus() == EmergencyStatus.CLOSED) {
-
-            // Save the new status.
-            repository.saveEmergency(emergency);
 
             JOptionPane.showMessageDialog(
                     this,

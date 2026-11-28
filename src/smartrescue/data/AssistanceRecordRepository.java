@@ -13,6 +13,8 @@ public class AssistanceRecordRepository {
             Path.of("data", "assistance_records.csv");
 
     private static final String HEADER =
+            "recordId,emergencyId,description,recordedAt,patientsTreated,teamId";
+    private static final String LEGACY_HEADER =
             "recordId,emergencyId,description,recordedAt,patientsTreated";
 
     public void saveAssistanceRecord(AssistanceRecord record,
@@ -23,13 +25,16 @@ public class AssistanceRecordRepository {
             );
         }
 
+        CsvSupport.ensureColumns(FILE, HEADER, LEGACY_HEADER);
         String row =
             record.getRecordId() + "," +
             CsvSupport.escape(emergencyId) + "," +
             CsvSupport.escape(record.getDescription()) + "," +
             CsvSupport.escape(record.getRecordedAt() == null
                 ? null : record.getRecordedAt().toString()) + "," +
-            record.getPatientsTreated();
+            record.getPatientsTreated() + "," +
+            CsvSupport.escape(record.getTeamId() == null
+                ? null : record.getTeamId().toString());
 
         CsvSupport.upsert(
             FILE, HEADER, 0, String.valueOf(record.getRecordId()), row
@@ -37,6 +42,7 @@ public class AssistanceRecordRepository {
     }
 
     public List<AssistanceRecord> loadByEmergencyId(String emergencyId) {
+        CsvSupport.ensureColumns(FILE, HEADER, LEGACY_HEADER);
         List<AssistanceRecord> records = new ArrayList<>();
         List<String> lines = CsvSupport.readLines(FILE, HEADER);
 
@@ -44,7 +50,7 @@ public class AssistanceRecordRepository {
             if (lines.get(i).isBlank()) continue;
 
             List<String> fields = CsvSupport.parse(lines.get(i));
-            if (fields.size() != 5) {
+            if (fields.size() != 6) {
                 throw new IllegalStateException(
                     "Invalid assistance CSV record: " + lines.get(i)
                 );
@@ -58,7 +64,8 @@ public class AssistanceRecordRepository {
                     Integer.parseInt(fields.get(0)),
                     fields.get(2),
                     recordedAt,
-                    Integer.parseInt(fields.get(4))
+                    Integer.parseInt(fields.get(4)),
+                    fields.get(5).isBlank() ? null : Integer.parseInt(fields.get(5))
                 ));
             }
         }

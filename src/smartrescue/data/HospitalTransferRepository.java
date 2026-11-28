@@ -16,6 +16,8 @@ public class HospitalTransferRepository {
             Path.of("data", "hospital_transfers.csv");
 
     private static final String HEADER =
+            "transferId,emergencyId,transferTime,patientCount,transferStatus,hospitalId,patientIds,teamId,staffId";
+    private static final String LEGACY_HEADER =
             "transferId,emergencyId,transferTime,patientCount,transferStatus,hospitalId,patientIds";
 
     public void saveTransfer(HospitalTransfer transfer, String emergencyId) {
@@ -25,6 +27,7 @@ public class HospitalTransferRepository {
             );
         }
 
+        CsvSupport.ensureColumns(FILE, HEADER, LEGACY_HEADER);
         transfer.setEmergencyId(emergencyId);
 
         int hospitalId = transfer.getHospital() == null
@@ -42,7 +45,11 @@ public class HospitalTransferRepository {
             transfer.getPatientCount() + "," +
             CsvSupport.escape(transfer.getTransferStatus()) + "," +
             hospitalId + "," +
-            CsvSupport.escape(patientIds);
+            CsvSupport.escape(patientIds) + "," +
+            CsvSupport.escape(transfer.getTeamId() == null
+                ? null : transfer.getTeamId().toString()) + "," +
+            CsvSupport.escape(transfer.getStaffId() == null
+                ? null : transfer.getStaffId().toString());
 
         CsvSupport.upsert(
             FILE, HEADER, 0, String.valueOf(transfer.getTransferId()), row
@@ -65,6 +72,7 @@ public class HospitalTransferRepository {
             );
         }
 
+        CsvSupport.ensureColumns(FILE, HEADER, LEGACY_HEADER);
         List<HospitalTransfer> transfers = new ArrayList<>();
         List<String> lines = CsvSupport.readLines(FILE, HEADER);
 
@@ -72,7 +80,7 @@ public class HospitalTransferRepository {
             if (lines.get(i).isBlank()) continue;
 
             List<String> fields = CsvSupport.parse(lines.get(i));
-            if (fields.size() != 7) {
+            if (fields.size() != 9) {
                 throw new IllegalStateException(
                     "Invalid transfer CSV record: " + lines.get(i)
                 );
@@ -110,7 +118,9 @@ public class HospitalTransferRepository {
                 fields.get(4),
                 transferPatients,
                 hospital,
-                emergencyId
+                emergencyId,
+                fields.get(7).isBlank() ? null : Integer.parseInt(fields.get(7)),
+                fields.get(8).isBlank() ? null : Integer.parseInt(fields.get(8))
             ));
         }
 

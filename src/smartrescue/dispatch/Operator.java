@@ -1,6 +1,7 @@
 package smartrescue.dispatch;
 
 import smartrescue.Person;
+import smartrescue.data.AmbulanceRepository;
 import smartrescue.data.EmergencyRepository;
 import smartrescue.emergency.Emergency;
 import smartrescue.emergency.EmergencyStatus;
@@ -26,6 +27,7 @@ public class Operator extends Person {
                                   String type, Severity severity) {
 
         emergency.setClassification(type, severity);
+        emergency.setOperatorId(operatorId);
 
         EmergencyRepository repository = new EmergencyRepository();
         repository.saveEmergency(emergency);
@@ -43,6 +45,7 @@ public class Operator extends Person {
         }
 
         emergency.changeStatus(EmergencyStatus.VERIFIED);
+        emergency.setOperatorId(operatorId);
 
         EmergencyRepository repository = new EmergencyRepository();
         repository.saveEmergency(emergency);
@@ -62,15 +65,18 @@ public class Operator extends Person {
 
         ambulance.assignToEmergency(emergency);
         emergency.changeStatus(EmergencyStatus.RESPONDING);
+        emergency.setOperatorId(operatorId);
 
         EmergencyRepository repository = new EmergencyRepository();
         repository.saveEmergency(emergency);
+        new AmbulanceRepository().saveAmbulance(ambulance);
     }
 
     public void closeEmergency(Emergency emergency) {
 
         if (emergency.getStatus() == EmergencyStatus.RESOLVED) {
             emergency.changeStatus(EmergencyStatus.CLOSED);
+            emergency.setOperatorId(operatorId);
 
             EmergencyRepository repository = new EmergencyRepository();
             repository.saveEmergency(emergency);

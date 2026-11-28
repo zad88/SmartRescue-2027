@@ -23,9 +23,18 @@ public class Witness extends Person {
                                      String description,
                                      int injuredCount) {
 
+        if (location == null || location.isBlank()
+                || description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Location and description are required.");
+        }
+        if (injuredCount <= 0) {
+            throw new IllegalArgumentException("The number of injured people must be positive.");
+        }
+
         Emergency emergency = new Emergency(
                 location, description, injuredCount
         );
+        emergency.setWitnessId(witnessId);
 
         EmergencyRepository repository = new EmergencyRepository();
         repository.saveEmergency(emergency);

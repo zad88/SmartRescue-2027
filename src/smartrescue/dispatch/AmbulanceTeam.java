@@ -85,10 +85,26 @@ public class AmbulanceTeam {
     }
 
     public AssistanceRecord provideOnSceneAssistance(Emergency emergency) {
+        return provideOnSceneAssistance(emergency, "On-scene assistance",
+                emergency.getPatientCount());
+    }
+
+    public AssistanceRecord provideOnSceneAssistance(Emergency emergency,
+                                                       String description,
+                                                       int patientsTreated) {
+        if (emergency == null || emergency.getStatus() != EmergencyStatus.ON_SCENE) {
+            throw new IllegalArgumentException("The emergency must be on scene.");
+        }
+        if (description == null || description.isBlank()
+                || patientsTreated < 0 || patientsTreated > emergency.getPatientCount()) {
+            throw new IllegalArgumentException("Enter assistance details and a valid patient count.");
+        }
         AssistanceRecord record = new AssistanceRecord(
             IdGenerator.nextAssistanceRecordId(),
-            "On-scene assistance",
-            emergency.getPatientCount()
+            description,
+            null,
+            patientsTreated,
+            teamId
         );
 
         record.recordAssistance();
@@ -99,6 +115,10 @@ public class AmbulanceTeam {
         );
 
         return record;
+    }
+
+    public int getTeamId() {
+        return teamId;
     }
 
     public List<Hospital> searchHospital(String specialty, int minBeds) {
@@ -195,5 +215,13 @@ public class AmbulanceTeam {
 
         emergency.changeStatus(EmergencyStatus.RESOLVED);
         new EmergencyRepository().saveEmergency(emergency);
+
+        if (emergency.getAmbulance() != null
+                && new AmbulanceReleaseService().releaseAmbulance(
+                        emergency.getAmbulance().getAmbulanceId())
+                && ambulance.getAmbulanceId()
+                        == emergency.getAmbulance().getAmbulanceId()) {
+            ambulance.release();
+        }
     }
 }

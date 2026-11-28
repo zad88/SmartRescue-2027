@@ -19,6 +19,8 @@ public class Emergency {
     private Severity severity;
     private int patientCount;
     private EmergencyStatus status;
+    private Integer witnessId;
+    private Integer operatorId;
 
     private Ambulance ambulance;
     private List<Patient> patients;
@@ -109,6 +111,11 @@ public class Emergency {
     public Ambulance getAmbulance() {
         return ambulance;
     }
+
+    public Integer getWitnessId() { return witnessId; }
+    public void setWitnessId(Integer witnessId) { this.witnessId = witnessId; }
+    public Integer getOperatorId() { return operatorId; }
+    public void setOperatorId(Integer operatorId) { this.operatorId = operatorId; }
 
     public String getDetails() {
         return "Incident ID: " + incidentId +

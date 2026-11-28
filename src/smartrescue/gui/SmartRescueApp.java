@@ -4,16 +4,25 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JMenuBar;
+import javax.swing.JPanel;
+import javax.swing.BorderFactory;
 import javax.swing.SwingUtilities;
+import javax.swing.JComboBox;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JList;
+
+import java.awt.Component;
+import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
 
 import smartrescue.emergency.Witness;
 import smartrescue.dispatch.Operator;
 import smartrescue.dispatch.Ambulance;
 import smartrescue.dispatch.AmbulanceTeam;
-import smartrescue.data.AmbulanceRepository;
+import smartrescue.service.PortalService;
 
 public class SmartRescueApp {
 
@@ -23,81 +32,109 @@ public class SmartRescueApp {
 
     private static void showMainMenu() {
 
-        String[] options = {
-            "Witness Reporting",
-            "Operator Dashboard",
-            "Ambulance Console",
-            "Hospital Portal",
-            "Exit"
-        };
+        JFrame menuFrame = new JFrame("SmartRescue - Main Menu");
+        menuFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        int choice = JOptionPane.showOptionDialog(
-            null,
-            "Welcome to SmartRescue\n\nSelect an interface:",
-            "SmartRescue - Main Menu",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.PLAIN_MESSAGE,
-            null,
-            options,
-            options[0]
+        JPanel menuPanel = new JPanel(new GridLayout(5, 1, 10, 10));
+        menuPanel.setBorder(
+            BorderFactory.createEmptyBorder(20, 25, 20, 25)
         );
 
-        if (choice == -1 || choice == 4) {
-            return;
-        }
+        addMenuButton(menuPanel, menuFrame, "Witness Reporting", 0);
+        addMenuButton(menuPanel, menuFrame, "Operator Dashboard", 1);
+        addMenuButton(menuPanel, menuFrame, "Ambulance Console", 2);
+        addMenuButton(menuPanel, menuFrame, "Hospital Portal", 3);
+
+        JButton exitButton = new JButton("Exit");
+        exitButton.addActionListener(event -> System.exit(0));
+        menuPanel.add(exitButton);
+
+        menuFrame.add(menuPanel);
+        menuFrame.setSize(420, 350);
+        menuFrame.setLocationRelativeTo(null);
+        menuFrame.setVisible(true);
+    }
+
+    private static void addMenuButton(
+        JPanel menuPanel,
+        JFrame menuFrame,
+        String buttonText,
+        int choice
+    ) {
+        JButton button = new JButton(buttonText);
+
+        button.addActionListener(event -> {
+            menuFrame.dispose();
+            openSelectedInterface(choice);
+        });
+
+        menuPanel.add(button);
+    }
+
+    private static void openSelectedInterface(int choice) {
 
         try {
             JFrame frame;
+            PortalService service = new PortalService();
 
             switch (choice) {
 
                 case 0:
-                    Witness demoWitness = new Witness(
-                        1,
-                        "Demo Witness",
-                        "0000000000",
-                        "Cairo"
-                    );
+                    Witness demoWitness = service.loadWitness();
 
                     frame = new WitnessReportingFrame(demoWitness);
                     break;
 
                 case 1:
-                    Operator demoOperator = new Operator(
-                        1,
-                        "Demo Operator",
-                        "Day Shift",
-                        1
-                    );
+                    Operator demoOperator = service.loadOperator();
 
                     frame = new OperatorDashboardFrame(demoOperator);
                     break;
 
                 case 2:
-                    Ambulance demoAmbulance =
-                        new AmbulanceRepository().findAmbulanceById(2);
+                    List<Ambulance> ambulances =
+                        service.loadAmbulances();
 
-                    if (demoAmbulance == null) {
+                    if (ambulances.isEmpty()) {
                         JOptionPane.showMessageDialog(
                             null,
-                            "Ambulance ID 1 was not found in the database.",
+                            "No ambulances were found in the database.",
                             "Ambulance Not Found",
                             JOptionPane.WARNING_MESSAGE
                         );
 
-                        SwingUtilities.invokeLater(
-                            SmartRescueApp::showMainMenu
-                        );
+                        showMainMenu();
                         return;
                     }
 
-                    AmbulanceTeam demoTeam = new AmbulanceTeam(
-                        1,
-                        "Demo Driver",
-                        2,
-                        "On Duty",
-                        demoAmbulance
-                    );
+                    JComboBox<Ambulance> ambulanceChoices =
+                        new JComboBox<>(ambulances.toArray(new Ambulance[0]));
+                    ambulanceChoices.setRenderer(new DefaultListCellRenderer() {
+                        @Override
+                        public Component getListCellRendererComponent(
+                                JList<?> list, Object value, int index,
+                                boolean selected, boolean focused) {
+                            super.getListCellRendererComponent(
+                                    list, value, index, selected, focused);
+                            if (value instanceof Ambulance selectedAmbulance) {
+                                setText("ID: " + selectedAmbulance.getAmbulanceId()
+                                    + " | " + selectedAmbulance.getLicensePlate()
+                                    + " | " + selectedAmbulance.getStatus());
+                            }
+                            return this;
+                        }
+                    });
+                    int choiceResult = JOptionPane.showConfirmDialog(
+                        null, ambulanceChoices, "Select Ambulance",
+                        JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+                    if (choiceResult != JOptionPane.OK_OPTION) {
+                        showMainMenu();
+                        return;
+                    }
+                    Ambulance demoAmbulance =
+                        (Ambulance) ambulanceChoices.getSelectedItem();
+
+                    AmbulanceTeam demoTeam = service.loadTeam(demoAmbulance);
 
                     frame = new AmbulanceConsoleFrame(
                         demoTeam,
@@ -124,7 +161,7 @@ public class SmartRescueApp {
                 JOptionPane.ERROR_MESSAGE
             );
 
-            SwingUtilities.invokeLater(SmartRescueApp::showMainMenu);
+            showMainMenu();
         }
     }
 
@@ -145,7 +182,7 @@ public class SmartRescueApp {
         };
 
         // Add a visible Back to Main Menu button.
-        JButton backButton = new JButton("â† Back to Main Menu");
+        JButton backButton = new JButton("Back to Main Menu");
 
         backButton.addActionListener(event -> backToMenu.run());
 

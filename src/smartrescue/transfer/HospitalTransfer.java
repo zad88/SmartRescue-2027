@@ -22,12 +22,15 @@ public class HospitalTransfer {
     private Hospital hospital;
     private HospitalStaff hospitalStaff;
     private String emergencyId;
+    private Integer teamId;
+    private Integer staffId;
 
     public HospitalTransfer(int transferId, int patientCount,
                             String transferStatus, List<Patient> patients,
                             AmbulanceTeam ambulanceTeam, Hospital hospital) {
         this(transferId, null, patientCount, transferStatus, patients,
              ambulanceTeam, hospital, null, null);
+        this.teamId = ambulanceTeam == null ? null : ambulanceTeam.getTeamId();
     }
 
     // Constructor used when restoring a transfer from CSV.
@@ -36,7 +39,17 @@ public class HospitalTransfer {
                             List<Patient> patients, Hospital hospital,
                             String emergencyId) {
         this(transferId, transferTime, patientCount, transferStatus,
+                patients, hospital, emergencyId, null, null);
+    }
+
+    public HospitalTransfer(int transferId, LocalDateTime transferTime,
+                            int patientCount, String transferStatus,
+                            List<Patient> patients, Hospital hospital,
+                            String emergencyId, Integer teamId, Integer staffId) {
+        this(transferId, transferTime, patientCount, transferStatus,
              patients, null, hospital, null, emergencyId);
+        this.teamId = teamId;
+        this.staffId = staffId;
     }
 
     private HospitalTransfer(int transferId, LocalDateTime transferTime,
@@ -65,6 +78,30 @@ public class HospitalTransfer {
                 || hospital == null
                 || staff.getHospital().getHospitalId() != hospital.getHospitalId()) {
             return;
+        }
+
+        if (emergencyId != null) {
+            HospitalTransfer current = null;
+            for (HospitalTransfer candidate : new HospitalTransferRepository()
+                    .loadByEmergencyId(emergencyId)) {
+                if (candidate.getTransferId() == transferId) {
+                    current = candidate;
+                    break;
+                }
+            }
+            if (current == null || !"PENDING".equals(current.getTransferStatus())) {
+                throw new IllegalStateException(
+                        "This transfer has changed or was already confirmed. Refresh and try again.");
+            }
+            if (current.getHospital() == null
+                    || current.getHospital().getHospitalId() != hospital.getHospitalId()
+                    || current.getPatientCount() != patientCount) {
+                throw new IllegalStateException("Transfer details changed. Refresh and try again.");
+            }
+            patients = current.getPatients();
+            hospital.updateAvailability(current.getHospital().getAvailableBeds(),
+                    current.getHospital().getEmergencyCapacity(),
+                    current.getHospital().getMedicalSpecialties());
         }
 
         if (patients.size() != patientCount) return;
@@ -96,6 +133,7 @@ public class HospitalTransfer {
 
         hospital.receivePatients(patientCount);
         this.hospitalStaff = staff;
+        this.staffId = staff.getStaffId();
         this.transferStatus = "CONFIRMED";
 
         if (emergencyId != null) {
@@ -110,6 +148,8 @@ public class HospitalTransfer {
     public List<Patient> getPatients() { return new ArrayList<>(patients); }
     public Hospital getHospital() { return hospital; }
     public String getEmergencyId() { return emergencyId; }
+    public Integer getTeamId() { return teamId; }
+    public Integer getStaffId() { return staffId; }
 
     public void setEmergencyId(String emergencyId) {
         this.emergencyId = emergencyId;

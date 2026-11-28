@@ -8,6 +8,7 @@ public class AssistanceRecord {
     private String description;
     private LocalDateTime recordedAt;
     private int patientsTreated;
+    private Integer teamId;
 
     public AssistanceRecord(int recordId, String description,
                             int patientsTreated) {
@@ -16,10 +17,17 @@ public class AssistanceRecord {
 
     public AssistanceRecord(int recordId, String description,
                             LocalDateTime recordedAt, int patientsTreated) {
+        this(recordId, description, recordedAt, patientsTreated, null);
+    }
+
+    public AssistanceRecord(int recordId, String description,
+                            LocalDateTime recordedAt, int patientsTreated,
+                            Integer teamId) {
         this.recordId = recordId;
         this.description = description;
         this.recordedAt = recordedAt;
         this.patientsTreated = patientsTreated;
+        this.teamId = teamId;
     }
 
     public void recordAssistance() {
@@ -30,4 +38,5 @@ public class AssistanceRecord {
     public String getDescription() { return description; }
     public LocalDateTime getRecordedAt() { return recordedAt; }
     public int getPatientsTreated() { return patientsTreated; }
+    public Integer getTeamId() { return teamId; }
 }

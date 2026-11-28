@@ -1,0 +1,3 @@
+staffId,hospitalId,fullName,role,department
+1,1,"Demo Hospital Staff 1","Hospital Staff","Emergency Department"
+2,2,"Demo Hospital Staff 2","Hospital Staff","Emergency Department"

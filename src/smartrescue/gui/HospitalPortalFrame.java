@@ -2,6 +2,7 @@ package smartrescue.gui;
 
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,18 +15,17 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ListCellRenderer;
+import javax.swing.JTextField;
 
-import smartrescue.data.EmergencyRepository;
-import smartrescue.data.HospitalRepository;
 import smartrescue.emergency.Emergency;
 import smartrescue.hospital.Hospital;
 import smartrescue.hospital.HospitalStaff;
 import smartrescue.transfer.HospitalTransfer;
+import smartrescue.service.PortalService;
 
 public class HospitalPortalFrame extends JFrame {
 
-    private final EmergencyRepository emergencyRepository;
-    private final HospitalRepository hospitalRepository;
+    private final PortalService service;
 
     private JComboBox<Hospital> hospitalComboBox;
     private JComboBox<HospitalTransfer> transferComboBox;
@@ -40,8 +40,7 @@ public class HospitalPortalFrame extends JFrame {
 
     public HospitalPortalFrame() {
 
-        emergencyRepository = new EmergencyRepository();
-        hospitalRepository = new HospitalRepository();
+        service = new PortalService();
 
         setTitle("SmartRescue 2027 - Hospital Portal");
         setSize(850, 600);
@@ -50,6 +49,7 @@ public class HospitalPortalFrame extends JFrame {
 
         initializeComponents();
         refreshHospitals();
+        AutoRefresh.start(this, service, this::refreshHospitals);
     }
 
     private void initializeComponents() {
@@ -164,6 +164,9 @@ public class HospitalPortalFrame extends JFrame {
         );
 
         JPanel bottomPanel = new JPanel(new FlowLayout());
+        JButton updateHospitalButton = new JButton("Update Hospital Information");
+        updateHospitalButton.addActionListener(event -> updateHospitalInformation());
+        bottomPanel.add(updateHospitalButton);
         bottomPanel.add(confirmButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
@@ -171,6 +174,10 @@ public class HospitalPortalFrame extends JFrame {
 
     private void refreshHospitals() {
 
+        HospitalTransfer previousTransfer =
+                (HospitalTransfer) transferComboBox.getSelectedItem();
+        Integer previousTransferId = previousTransfer == null
+                ? null : previousTransfer.getTransferId();
         refreshingHospitals = true;
 
         Integer previousHospitalId = null;
@@ -185,7 +192,7 @@ public class HospitalPortalFrame extends JFrame {
         hospitalComboBox.removeAllItems();
 
         List<Hospital> hospitals =
-                hospitalRepository.loadAllHospitals();
+                service.loadHospitals();
 
         int selectedIndex = -1;
 
@@ -209,6 +216,14 @@ public class HospitalPortalFrame extends JFrame {
         refreshingHospitals = false;
 
         hospitalSelectionChanged();
+        if (previousTransferId != null) {
+            for (int i = 0; i < transferComboBox.getItemCount(); i++) {
+                if (transferComboBox.getItemAt(i).getTransferId() == previousTransferId) {
+                    transferComboBox.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
     }
 
     private void hospitalSelectionChanged() {
@@ -230,13 +245,7 @@ public class HospitalPortalFrame extends JFrame {
             return;
         }
 
-        hospitalStaff = new HospitalStaff(
-                1,
-                "Demo Hospital Staff",
-                "Hospital Staff",
-                "Emergency Department",
-                selectedHospital
-        );
+        hospitalStaff = service.loadStaff(selectedHospital);
 
         updateHospitalDetails(selectedHospital);
         refreshTransfers();
@@ -252,6 +261,55 @@ public class HospitalPortalFrame extends JFrame {
         );
     }
 
+    private void updateHospitalInformation() {
+        Hospital hospital = (Hospital) hospitalComboBox.getSelectedItem();
+        if (hospital == null || hospitalStaff == null) {
+            JOptionPane.showMessageDialog(this, "Select a hospital first.");
+            return;
+        }
+        JTextField beds = new JTextField(String.valueOf(hospital.getAvailableBeds()));
+        JTextField capacity = new JTextField(String.valueOf(hospital.getEmergencyCapacity()));
+        JTextField specialties = new JTextField(String.join("; ", hospital.getMedicalSpecialties()));
+        JPanel form = new JPanel(new GridLayout(3, 2, 5, 5));
+        form.add(new JLabel("Available beds:"));
+        form.add(beds);
+        form.add(new JLabel("Emergency capacity:"));
+        form.add(capacity);
+        form.add(new JLabel("Specialties (separated by ;):"));
+        form.add(specialties);
+        if (JOptionPane.showConfirmDialog(this, form, "Update Hospital Information",
+                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        int bedCount;
+        int capacityCount;
+        try {
+            bedCount = Integer.parseInt(beds.getText().trim());
+            capacityCount = Integer.parseInt(capacity.getText().trim());
+        } catch (NumberFormatException exception) {
+            JOptionPane.showMessageDialog(this, "Beds and capacity must be whole numbers.");
+            return;
+        }
+        List<String> values = new ArrayList<>();
+        for (String value : specialties.getText().split(";", -1)) {
+            values.add(value.trim());
+        }
+        try {
+            hospitalStaff.updateHospitalInfo(hospital, bedCount, capacityCount, values);
+        } catch (IllegalArgumentException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    "Invalid Hospital Information", JOptionPane.WARNING_MESSAGE);
+            return;
+        } catch (IllegalStateException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    "Hospital Update Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        refreshHospitals();
+        JOptionPane.showMessageDialog(this, "Hospital information updated.");
+    }
+
     private void refreshTransfers() {
 
         transferComboBox.removeAllItems();
@@ -264,7 +322,7 @@ public class HospitalPortalFrame extends JFrame {
         }
 
         List<Emergency> emergencies =
-                emergencyRepository.loadAllEmergencies();
+                service.loadEmergencies();
 
         List<HospitalTransfer> matchingTransfers = new ArrayList<>();
 
@@ -360,7 +418,14 @@ public class HospitalPortalFrame extends JFrame {
             return;
         }
 
-        hospitalStaff.confirmPatientTransfer(transfer);
+        try {
+            hospitalStaff.confirmPatientTransfer(transfer);
+        } catch (IllegalStateException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    "Transfer Changed", JOptionPane.WARNING_MESSAGE);
+            refreshHospitals();
+            return;
+        }
 
         if ("CONFIRMED".equals(transfer.getTransferStatus())) {
 

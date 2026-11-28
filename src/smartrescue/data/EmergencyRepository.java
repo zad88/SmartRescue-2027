@@ -1,7 +1,5 @@
 package smartrescue.data;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,6 +22,9 @@ public class EmergencyRepository {
             "incidentId,location,description,reportedAt,type,severity,patientCount,status";
 
     private static final String HEADER =
+            "incidentId,location,description,reportedAt,type,severity,patientCount,status,ambulanceId,witnessId,operatorId";
+
+    private static final String AMBULANCE_HEADER =
             "incidentId,location,description,reportedAt,type,severity,patientCount,status,ambulanceId";
 
     public void saveEmergency(Emergency emergency) {
@@ -55,7 +56,11 @@ public class EmergencyRepository {
                 ) + "," +
                 emergency.getPatientCount() + "," +
                 CsvSupport.escape(emergency.getStatus().name()) + "," +
-                CsvSupport.escape(ambulanceId);
+                CsvSupport.escape(ambulanceId) + "," +
+                CsvSupport.escape(emergency.getWitnessId() == null
+                        ? null : emergency.getWitnessId().toString()) + "," +
+                CsvSupport.escape(emergency.getOperatorId() == null
+                        ? null : emergency.getOperatorId().toString());
 
         CsvSupport.upsert(
                 FILE,
@@ -129,51 +134,7 @@ public class EmergencyRepository {
     }
 
     private void ensureSchema() {
-
-        List<String> lines = CsvSupport.readLines(FILE, HEADER);
-
-        if (lines.isEmpty() || HEADER.equals(lines.get(0))) {
-            return;
-        }
-
-        if (!LEGACY_HEADER.equals(lines.get(0))) {
-            throw new IllegalStateException(
-                    "Unexpected emergency CSV header: " + lines.get(0)
-            );
-        }
-
-        List<String> migratedLines = new ArrayList<>();
-        migratedLines.add(HEADER);
-
-        for (int i = 1; i < lines.size(); i++) {
-
-            String line = lines.get(i);
-
-            if (line.isBlank()) {
-                migratedLines.add(line);
-                continue;
-            }
-
-            int fieldCount = CsvSupport.parse(line).size();
-
-            if (fieldCount == 8) {
-                migratedLines.add(line + ",");
-            } else if (fieldCount == 9) {
-                migratedLines.add(line);
-            } else {
-                throw new IllegalStateException(
-                        "Cannot migrate emergency CSV record: " + line
-                );
-            }
-        }
-
-        try {
-            Files.write(FILE, migratedLines);
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Could not migrate emergency CSV file.", e
-            );
-        }
+        CsvSupport.ensureColumns(FILE, HEADER, LEGACY_HEADER, AMBULANCE_HEADER);
     }
 
     private void restoreRelatedRecords(Emergency emergency) {
@@ -202,7 +163,7 @@ public class EmergencyRepository {
 
         List<String> fields = CsvSupport.parse(line);
 
-        if (fields.size() != 9) {
+        if (fields.size() != 11) {
             throw new IllegalStateException(
                     "Invalid emergency CSV record: " + line
             );
@@ -222,6 +183,12 @@ public class EmergencyRepository {
                 Integer.parseInt(fields.get(6)),
                 EmergencyStatus.valueOf(fields.get(7))
         );
+        if (!fields.get(9).isBlank()) {
+            emergency.setWitnessId(Integer.parseInt(fields.get(9)));
+        }
+        if (!fields.get(10).isBlank()) {
+            emergency.setOperatorId(Integer.parseInt(fields.get(10)));
+        }
 
         if (!fields.get(8).isBlank()) {
 
